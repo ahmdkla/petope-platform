@@ -38,6 +38,57 @@ sorted before the init migration and failed against a missing table.
 
 ---
 
+## Release timers are stored as absolute deadlines, not durations
+
+**Date:** 2026-08-27
+
+`Deal` carries `sellerDeliveryDeadline`, `buyerConfirmDeadline`, `autoReleaseAt`
+and `timersPausedAt` as timestamps, each with a `@@index([status, <deadline>])`.
+
+Two reasons they are stored rather than derived:
+
+- **Scheduled jobs can index-scan for due work** (`status = X AND deadline <=
+  now()`) instead of walking every deal and recomputing windows from the method
+  config.
+- **A running deadline must not move.** The window lengths (24h / 6h / 2h) are
+  admin-tunable per method; resolving them at read time would retroactively
+  shift deadlines on deals already in flight. They are resolved once, when the
+  timer starts.
+
+`timersPausedAt` exists because deals legitimately stall — an open dispute, or a
+project delaying its mint by months. Timer jobs **must** skip deals where it is
+set.
+
+---
+
+## Alt-account signals are hashed and admin-only
+
+**Date:** 2026-08-27
+
+`User.lastSeenIpHash` and `User.lastSeenDeviceId` store salted digests, never
+raw values. Together with a shared `UserWallet.address`, they are the three
+signals behind the Discord's manual `same-person` detection.
+
+They are personal data held only for fraud review: never surface them publicly,
+never log them, and compare by equality only.
+
+---
+
+## Listings track `quantityRemaining` separately from `quantity`
+
+**Date:** 2026-08-27
+
+A listing's status alone could not express partial fulfilment — a quantity-20
+listing that sold 5 spots was neither `ACTIVE` nor `FULFILLED`. And with no
+reserved state, two buyers could Quick Buy the same listing concurrently.
+
+Added `ListingStatus.IN_DEAL` and `Listing.quantityRemaining`. Prisma cannot
+default one column from another, so **creating code must set
+`quantityRemaining = quantity` explicitly**; a CHECK constraint in
+`prisma/migrations/manual/` keeps it within `0..quantity`.
+
+---
+
 ## Append-only enforced by a trigger, not a Postgres RULE
 
 **Date:** 2026-08-27

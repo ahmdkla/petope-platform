@@ -62,7 +62,13 @@ enum ListingType {
 
 enum ListingStatus {
   ACTIVE
+  /// Reserved by at least one open deal. Set when Quick Buy / Quick Sell opens
+  /// a ticket, so a second buyer cannot claim the same spots concurrently.
+  /// Returns to ACTIVE if that deal is CANCELLED or REFUNDED and
+  /// quantityRemaining is still above zero.
+  IN_DEAL
   DELISTED
+  /// quantityRemaining has reached zero.
   FULFILLED
   EXPIRED
 }
@@ -157,10 +163,16 @@ enum TransactionAction {
   COLLATERAL_FORFEITED
   REFUND_ISSUED
   MM_FEE_TAKEN
+  /// refund-mm-fee: the MM fee is reversed back to the buyer.
+  MM_FEE_REFUNDED
   DEAL_CANCELLED
   DEAL_ESCALATED
   DISPUTE_RULED
   ADMIN_OVERRIDE
+  /// An admin opened a deal room they are not a participant in. Admin audit
+  /// access is permitted but ALWAYS logged — see "Core Concept: Deal Rooms"
+  /// in CLAUDE.md. Write one row per access, never a silent read.
+  AUDIT_ACCESS
 }
 
 enum MessageKind {
@@ -190,6 +202,22 @@ model User {
   /// anti-impersonation reference. Impersonation is the top threat.
   isVerifiedMm    Boolean @default(false)
   tradesSecured   Int     @default(0)
+
+  /// When this user explicitly accepted the guidelines/terms and privacy
+  /// policy. The Discord treats opening a ticket as implicit agreement; the
+  /// web platform requires an explicit checkbox and records the timestamp.
+  /// Null means never accepted — gate ticket creation on it.
+  termsAcceptedAt DateTime?
+
+  // --- alt-account / same-person signals (admin-only, never shown publicly) ---
+  /// Hashes, never raw values: a salted digest of the last-seen IP and a
+  /// client-generated device id. Stored so shared IPs and devices can be
+  /// flagged alongside shared wallets (UserWallet.address), which is the
+  /// `same-person` detection the Discord does by hand.
+  /// Never log or expose these; they are personal data used only for fraud
+  /// review. Do not attempt to reverse them — comparison is equality-only.
+  lastSeenIpHash   String?
+  lastSeenDeviceId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -310,15 +338,22 @@ model Listing {
   type      ListingType
 
   // --- optional listing fields ---
-  quantity      Int     @default(1)
+  quantity          Int     @default(1)
+  /// How many spots are still unclaimed. Initialize to `quantity` when the
+  /// listing is created (Prisma cannot default one column from another, so the
+  /// creating code must set it explicitly) and decrement as deals complete.
+  /// Without this, a quantity-20 listing that sells 5 spots is unrepresentable
+  /// — it could only be ACTIVE or FULFILLED. Must stay within 0..quantity;
+  /// enforced by CHECK in prisma/migrations/manual/.
+  quantityRemaining Int
   /// Seller's pledged collateral, in `payment` units. Null means "None".
   /// The configured per-method/tier minimum is enforced in app code, not here
   /// (it is an AdminSetting, never a hardcoded value).
-  collateral    BigInt?
+  collateral        BigInt?
   /// External URL, usually x.com.
-  projectLink   String?
+  projectLink       String?
   /// Whether the poster accepts offers. Sellers negotiate up, buyers down.
-  acceptsOffers Boolean @default(false)
+  acceptsOffers     Boolean @default(false)
   // TODO: a 12th optional /buy//sell field exists but is still unidentified.
   // Confirm what it is before finalizing — do not invent one.
 
@@ -431,6 +466,29 @@ model Deal {
   completedAt   DateTime?
   cancelledAt   DateTime?
 
+  // --- release timers (enforced by scheduled jobs) ---
+  // Absolute deadlines, resolved from the per-method config
+  // (docs/deal-methods.md) at the moment each timer STARTS, then stored. They
+  // are not recomputed on read: an admin retuning a window must not
+  // retroactively move a deadline on a deal already running.
+  //
+  // Stored as timestamps rather than durations so a scheduled job can
+  // index-scan for due work (`status = X AND <deadline> <= now()`) instead of
+  // walking every deal and recomputing.
+  /// Mint For You: seller must deliver the NFT within 6h after mint, or the
+  /// deal fails and the buyer receives all funds.
+  sellerDeliveryDeadline DateTime?
+  /// Wallet Submit with post-mint release: buyer has 2h max to confirm.
+  buyerConfirmDeadline   DateTime?
+  /// Buyer non-response after mint: funds auto-release to the seller after 24h
+  /// (Wallet Surrender, Mint For You). Auto-release still requires the method's
+  /// configured timer to have elapsed — never release early.
+  autoReleaseAt          DateTime?
+  /// Non-null while the clock is stopped (dispute open, project mint delayed
+  /// indefinitely). Scheduled jobs MUST skip deals where this is set, and the
+  /// remaining time is recomputed when timers resume.
+  timersPausedAt         DateTime?
+
   /// Set when a private key or Discord credential handover is DECLARED to have
   /// happened off-platform. The platform never sees the secret itself — only
   /// that both parties acknowledged the handover, and when.
@@ -465,6 +523,10 @@ model Deal {
   @@index([sellerId])
   @@index([batchNumber])
   @@index([status, mintAt])
+  // Let the timer jobs index-scan for due work rather than scanning all deals.
+  @@index([status, autoReleaseAt])
+  @@index([status, sellerDeliveryDeadline])
+  @@index([status, buyerConfirmDeadline])
 }
 
 /// The manual verification record. One row per "sends X and submits Solscan
@@ -507,9 +569,11 @@ model PaymentProof {
   verifiedAt   DateTime?
   verifierNote String?
 
-  deal        Deal  @relation(fields: [dealId], references: [id], onDelete: Restrict)
-  submittedBy User  @relation("ProofSubmittedBy", fields: [submittedById], references: [id], onDelete: Restrict)
-  verifiedBy  User? @relation("ProofVerifiedBy", fields: [verifiedById], references: [id], onDelete: Restrict)
+  deal        Deal             @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  submittedBy User             @relation("ProofSubmittedBy", fields: [submittedById], references: [id], onDelete: Restrict)
+  verifiedBy  User?            @relation("ProofVerifiedBy", fields: [verifiedById], references: [id], onDelete: Restrict)
+  /// Every confirm/reject writes a TransactionLog row naming the verifier.
+  logs        TransactionLog[]
 
   @@index([dealId, kind])
   /// MM review queue.
@@ -557,7 +621,8 @@ model TransactionLog {
   fromStatus DealStatus?
   toStatus   DealStatus?
 
-  /// The PaymentProof this entry relates to, when there is one.
+  /// The PaymentProof this entry relates to, when there is one. A real
+  /// relation, not a bare id string — the audit trail joins proof to ledger.
   proofId   String?
   /// Tx signature / Solscan reference, copied as opaque text for the audit
   /// trail. Never resolved by the server.
@@ -568,12 +633,14 @@ model TransactionLog {
 
   createdAt DateTime @default(now())
 
-  deal  Deal? @relation(fields: [dealId], references: [id], onDelete: Restrict)
-  actor User  @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  deal  Deal?         @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  actor User          @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  proof PaymentProof? @relation(fields: [proofId], references: [id], onDelete: Restrict)
 
   @@index([dealId, createdAt])
   @@index([actorId, createdAt])
   @@index([action, createdAt])
+  @@index([proofId])
 }
 
 // ---------------------------------------------------------------------------
