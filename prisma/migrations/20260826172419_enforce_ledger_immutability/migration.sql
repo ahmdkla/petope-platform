@@ -1,16 +1,9 @@
 -- ============================================================================
--- Append-only ledger + no-self-verification, enforced at the database.
+-- Append-only ledger, no self-verification, no self-dealing.
 --
--- ⚠️  NOT YET IN THE MIGRATION CHAIN. Nothing in this file is applied.
---     Until it is folded into a real migration, the TransactionLog is freely
---     editable, a middleman can confirm their own payment proof, and a deal can
---     be created with buyer == seller — all at the database level.
---     See docs/DECISIONS.md.
---
--- To apply, after `prisma migrate dev --name init` has generated the initial
--- migration, move this file into a migration folder timestamped AFTER it:
---     prisma/migrations/<later-timestamp>_transaction_log_immutable/migration.sql
--- Ordering matters — both statements below need their tables to already exist.
+-- Applied as migration 20260826172419_enforce_ledger_immutability, immediately
+-- after 20260826172349_init. Ordering matters: every statement below needs its
+-- table to already exist.
 --
 -- Notes:
 --   * A trigger is used rather than a Postgres RULE. `CREATE RULE ... DO
@@ -19,12 +12,11 @@
 --     ledger would look like it worked. Raising is loud and traceable.
 --   * The trigger fires for every role including the table owner and superuser,
 --     so the application's DB user cannot bypass it.
---   * Prisma's PSL cannot express CHECK constraints, so the no-self-verification
---     rule lives here. Because migrations are replayed into the shadow database,
---     `migrate dev` will not report it as drift once this file is in the chain.
---   * The CHECK is a BACKSTOP. The same rule is enforced in the service layer
---     (lib/payments/verifier.ts), which is what actually protects the flow
---     while this file sits unapplied.
+--   * Prisma's PSL cannot express CHECK constraints, which is why these live in
+--     a hand-written migration. Because migrate replays the whole chain into the
+--     shadow database, they are not reported as drift.
+--   * The no-self-verification CHECK is a BACKSTOP. The same rule is enforced in
+--     the service layer (lib/payments/verifier.ts). Keep both.
 -- ============================================================================
 
 -- --- TransactionLog is append-only -----------------------------------------

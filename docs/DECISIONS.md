@@ -6,35 +6,45 @@ until this file is updated.
 
 ---
 
-## ⚠️ OPEN CHORE — fold `prisma/migrations/manual/` into the first real migration
+## ✅ RESOLVED — ledger immutability and self-dealing constraints are applied
 
-**Status:** outstanding. Blocks nothing today; silently weakens the system if
-forgotten.
+**Date:** 2026-08-27 · **Migration:** `20260826172419_enforce_ledger_immutability`
 
-`prisma/migrations/manual/transaction_log_immutable.sql` is **not in the
-migration chain and has never been applied.** It contains the two rules that
-make the audit trail trustworthy:
+The previously parked SQL is now **in the migration chain and applied** to the
+database. It runs immediately after `20260826172349_init`.
 
-- the trigger that makes `TransactionLog` append-only
-- the CHECK constraint stopping a middleman confirming their own payment proof
+What it installs:
 
-Until it is applied, **the ledger is freely editable and self-verification is
-only blocked in application code.**
+| Object | Table | Effect |
+|---|---|---|
+| `transaction_log_no_change` (trigger) | `TransactionLog` | `UPDATE`/`DELETE` raise `23001` |
+| `payment_proof_no_self_verification` | `PaymentProof` | `verifiedById` ≠ `submittedById` |
+| `deal_buyer_is_not_seller` | `Deal` | buyer ≠ seller |
+| `deal_middleman_is_not_a_party` | `Deal` | MM is neither buyer nor seller |
+| `listing_quantity_remaining_in_range` | `Listing` | `0 <= quantityRemaining <= quantity` |
 
-It sits outside the chain because it has to run *after* the tables exist, and
-no initial migration had been generated when it was written. Prisma applies
-migrations in lexicographic folder order, so a hand-picked timestamp could have
-sorted before the init migration and failed against a missing table.
+Verified against the live database — every one fires, and a legitimate
+`TransactionLog` INSERT still succeeds. Reproduce with
+`node scripts/verify-constraints.mjs`.
 
-**To resolve:**
+The migration is the single source for this SQL. The old parked copy at
+`prisma/migrations/manual/transaction_log_immutable.sql` has been **deleted** —
+it was byte-identical in its executable statements and would only have drifted.
+(It originally had to be moved out of `prisma/migrations/` because Prisma was
+treating the `manual/` folder as a malformed migration named `manual`.)
 
-1. `npx prisma migrate dev --name init`
-2. Move the file to
-   `prisma/migrations/<timestamp-after-init>_transaction_log_immutable/migration.sql`
-3. `npx prisma migrate dev` to apply it
-4. Verify it bites — an `UPDATE "TransactionLog" SET action = 'ADMIN_OVERRIDE'`
-   must raise `TransactionLog is append-only`, not report success
-5. Delete this section
+**One follow-up:**
+
+- The verification run left **undeletable test rows** in the database
+   (`vt_buyer`, `vt_seller`, `vt_mm`, deal `vt_deal`, logs `vt_log`/`vt_log2`).
+   That is the constraints working: the ledger rows cannot be deleted, which
+   `onDelete: Restrict` then propagates to the deal and its users. Clearing them
+   requires `prisma migrate reset`, which drops the whole database.
+
+**Consequence worth designing around:** there is now no way to delete a user,
+deal, or ledger row through ordinary SQL. Any future need to purge data (a GDPR
+erasure request, for instance) has to be met by redaction-in-place on the
+mutable tables plus a documented exception path — not by `DELETE`.
 
 ---
 
@@ -85,7 +95,8 @@ reserved state, two buyers could Quick Buy the same listing concurrently.
 Added `ListingStatus.IN_DEAL` and `Listing.quantityRemaining`. Prisma cannot
 default one column from another, so **creating code must set
 `quantityRemaining = quantity` explicitly**; a CHECK constraint in
-`prisma/migrations/manual/` keeps it within `0..quantity`.
+the `listing_quantity_remaining_in_range` CHECK (migration
+`20260826172419_enforce_ledger_immutability`) keeps it within `0..quantity`.
 
 ---
 

@@ -37,10 +37,9 @@ export class SelfVerificationError extends Error {
  * A middleman may never confirm or reject their own submission.
  *
  * This mirrors the `payment_proof_no_self_verification` CHECK constraint in
- * prisma/migrations/manual/transaction_log_immutable.sql. That file is not yet
- * in the migration chain (see docs/DECISIONS.md), so **this guard is currently
- * the only thing enforcing the rule.** Keep both: the database is the backstop,
- * this is the one that runs today.
+ * migration 20260826172419_enforce_ledger_immutability, which IS applied.
+ * Keep both: the database is the backstop that catches anything bypassing the
+ * service layer, this one produces a usable error before the query is issued.
  *
  * Call before any state change, on the proof as loaded from the database —
  * never on a submitter id supplied by the client.

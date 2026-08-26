@@ -344,7 +344,8 @@ model Listing {
   /// creating code must set it explicitly) and decrement as deals complete.
   /// Without this, a quantity-20 listing that sells 5 spots is unrepresentable
   /// — it could only be ACTIVE or FULFILLED. Must stay within 0..quantity;
-  /// enforced by CHECK in prisma/migrations/manual/.
+  /// enforced by the listing_quantity_remaining_in_range CHECK, applied in
+  /// migration 20260826172419_enforce_ledger_immutability.
   quantityRemaining Int
   /// Seller's pledged collateral, in `payment` units. Null means "None".
   /// The configured per-method/tier minimum is enforced in app code, not here
@@ -563,8 +564,9 @@ model PaymentProof {
   ///
   /// MUST NOT equal submittedById: nobody verifies their own payment. Prisma's
   /// PSL cannot express CHECK constraints, so that rule is enforced in
-  /// prisma/migrations/manual/transaction_log_immutable.sql AND in the service
-  /// layer (the SQL is a backstop, not the only guard).
+  /// migration 20260826172419_enforce_ledger_immutability
+  /// (the payment_proof_no_self_verification CHECK) AND in the service layer,
+  /// lib/payments/verifier.ts. The CHECK is a backstop, not the only guard.
   verifiedById String?
   verifiedAt   DateTime?
   verifierNote String?
@@ -606,8 +608,9 @@ model DealMessage {
 /// actor, deal, action, amount, before/after state, timestamp, tx reference.
 ///
 /// There is deliberately NO updatedAt — rows are never modified. UPDATE and
-/// DELETE are blocked at the database by a trigger that raises, installed in
-/// prisma/migrations/manual/transaction_log_immutable.sql.
+/// DELETE are blocked at the database by the transaction_log_no_change trigger,
+/// which RAISEs (SQLSTATE 23001) rather than silently discarding the write.
+/// Applied in migration 20260826172419_enforce_ledger_immutability.
 model TransactionLog {
   id String @id @default(cuid())
 
