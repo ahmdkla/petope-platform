@@ -14,6 +14,7 @@ the workflow that already works, not reinvent it.**
 - `docs/deal-methods.md` — the 7 deal types and their exact money flows.
   **Read this before touching any escrow, payment, or deal-state code.**
 - `docs/features.md` — full feature map derived from the Discord server
+- `docs/DECISIONS.md` — running log of settled architectural decisions
 - `docs/screenshots/` — screenshots of the live Discord workflow
 
 ## Domain Vocabulary (use these exact terms in code and UI)
@@ -33,6 +34,8 @@ the workflow that already works, not reinvent it.**
 - **Solscan link** — payment proof; buyer/seller submit tx links as evidence
 
 ## Payment Facts (do not change without asking)
+- **All payment happens off-platform and is verified manually by a middleman.**
+  See "Payment Verification Is Manual" below — read it before any payment code.
 - Accepted settlement assets: **SOL, USDC, USDT — Solana network**
   (the older FAQ says USDT/USDC only; SOL now appears in the listing form, so
   the FAQ text needs updating on the new platform)
@@ -188,13 +191,15 @@ shared `assertDealParticipant()` helper — never hand-roll the check.
 - **Styling:** Tailwind + shadcn/ui
 - **DB:** PostgreSQL + Prisma
 - **Auth:** NextAuth with **Discord OAuth primary** (existing user base already
-  has Discord accounts — lowest-friction migration), wallet sign-in secondary
+  has Discord accounts — lowest-friction migration). **No wallet sign-in.**
 - **Realtime:** Pusher or Ably (deal room chat, listing feed, notifications)
-- **Payments:** Solana USDT/USDC. Use `@solana/web3.js` + Helius/QuickNode RPC
-  to verify incoming transfers by signature. Verify on-chain — never trust a
-  pasted link alone.
+- **Payments:** none. No SDK, no RPC, no wallet library. Payment proofs are
+  text references confirmed by a human middleman — see the manual verification
+  section below.
 - **Jobs/timers:** Inngest or a queue with durable scheduling (24h/6h/2h
   release timers must survive deploys)
+- **Serialization:** `superjson` — BigInt money fields will not survive
+  `JSON.stringify` without it
 - **Uploads:** UploadThing or Cloudflare R2 (proof screenshots)
 - **Hosting:** Vercel + managed Postgres (Neon/Supabase/Railway)
 
@@ -217,14 +222,71 @@ first. There are safer alternatives worth discussing (delegated mint
 authority, burner-wallet flows, on-chain allowlist transfer) depending on
 the project.
 
-## Escrow Custody Model — decide explicitly
-1. **Custodial** (current model) — platform/MM wallet holds funds, MM releases
-   manually. Matches today's process; simplest to build; but the platform
-   holds user funds, which carries real legal and regulatory weight.
-2. **Smart contract escrow** — funds locked on-chain, released by MM signature
-   or multisig. More trustless, more work, needs an audit.
+## DECIDED: Payment Verification Is Manual — No Wallet Integration
 
-Do not pick silently. If unspecified, assume custodial and say so.
+**This is settled. Do not propose wallet connection, RPC verification, or a
+payment SDK unless explicitly asked.**
+
+The platform **never connects a wallet, never holds keys, never touches an
+on-chain API, and never moves money itself.** It records what humans do
+off-platform — exactly as the Discord workflow does today.
+
+### How payment works
+1. Buyer sends funds to the middleman's wallet **outside the platform**
+   (their own wallet app, as they do today)
+2. Buyer pastes the **Solscan link** (or tx signature) into the deal room as a
+   `PaymentProof`
+3. Seller does the same for collateral
+4. The **middleman opens the link, verifies it themselves, and clicks
+   Confirm** — a human decision, recorded with their user id and timestamp
+5. That confirmation is what advances the deal state and writes to
+   `TransactionLog`
+
+The same applies in reverse for release and refund: the MM sends funds
+off-platform, pastes the proof, and marks it done.
+
+### Why this is correct, not a shortcut
+This mirrors current operations exactly. There is no automated payment
+verification in the live Discord service today — a middleman reads a Solscan
+link and decides. Automated verification would be an *addition* to the
+business process, not a port of it. The platform's job is the escrow state
+machine, timers, collateral rules, disputes, and audit trail — not payment
+rails.
+
+### Hard rules
+- No wallet connect (no Phantom, no wagmi, no `@solana/web3.js`, no WalletConnect)
+- No RPC provider, no on-chain lookups, no signature verification
+- Never store a private key or seed phrase — unchanged from the rule above
+- Wallet addresses are stored only as **plain text reference strings** that
+  humans read; the platform never derives meaning from them
+- A `PaymentProof` is **unverified data** until a middleman confirms it. Never
+  auto-advance state from a submitted proof.
+- The MM who confirms must be recorded on the proof and in the ledger. No
+  anonymous confirmations.
+
+### Keep it swappable
+Put verification behind one interface so a future automated verifier is a
+swap, not a rewrite:
+
+```ts
+interface PaymentVerifier {
+  submitProof(dealId: string, reference: string, kind: ProofKind): Promise<PaymentProof>;
+  verify(proofId: string, verifierId: string, decision: 'confirm' | 'reject', note?: string): Promise<void>;
+}
+
+// v1 — the only implementation that exists
+class ManualVerifier implements PaymentVerifier {}
+```
+
+No escrow code may call a verifier implementation directly — only this
+interface.
+
+### Demo / academic context
+This build is a **university project**. There are no real users and no real
+funds. Add a `DEMO_MODE` env flag that, when on, shows a persistent banner
+stating no real payments are processed, and relaxes proof-format validation so
+test data can be entered freely. Never let demo mode silently auto-confirm
+payments — the manual MM confirmation step is the thing being demonstrated.
 
 ## Conventions
 - Money as integers in smallest unit — never floats
@@ -264,8 +326,11 @@ npx prisma studio        # inspect DB
 
 ## Do NOT do without asking
 - Change the deal lifecycle states or any deal method's money flow
-- Change the custody model (custodial vs on-chain)
-- Change accepted payment networks
+- **Add wallet connection, a payment SDK, RPC calls, or automated on-chain
+  verification** — manual MM verification is a settled decision
+- Auto-confirm or auto-verify a payment proof for any reason, including in
+  demo mode
+- Change accepted payment assets
 - Remove or bypass the audit log / transcripts
 - Auto-release funds without the method's required confirmation or timer
 - Build anything that accepts a private key or seed phrase

@@ -1,0 +1,629 @@
+// EXSAVERSE — WL marketplace + middleman escrow.
+//
+// Scope: build-order steps 1-4 (auth/profiles/MM roster, listings, deal rooms
+// + lifecycle, payment proofs + manual verification + ledger).
+//
+// TWO THINGS THIS SCHEMA DELIBERATELY DOES NOT CONTAIN:
+//   1. Any wallet, RPC, SDK or on-chain verification surface. Payment
+//      verification is manual — a middleman opens a Solscan link, checks it
+//      personally, and confirms. See "Payment Verification Is Manual" in
+//      CLAUDE.md. Wallet addresses and tx references are opaque human-read
+//      strings; the platform never parses or resolves them.
+//   2. Any field capable of holding a private key or seed phrase. Key handover
+//      happens off-platform; only the fact that it was declared is recorded.
+//
+// Money is always a BigInt in the asset's smallest unit, stored beside its
+// PaymentAsset. Never a Float, never a bare number. BigInt does not survive
+// JSON.stringify — serialize with superjson.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7 removed `url` from the datasource block — the connection string
+// now lives in prisma.config.ts.
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum UserRole {
+  USER
+  MIDDLEMAN
+  MAIN_MIDDLEMAN // Boss MM — final say on escalated disputes
+  ADMIN
+}
+
+/// Users are never hard deleted: onDelete: Restrict on every deal-related
+/// relation makes that impossible by design, so removal is a status change.
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BLACKLISTED
+}
+
+enum ListingSide {
+  BUY
+  SELL
+}
+
+/// The listing form's coarse, browsable filter. NOT the escrow flow.
+/// Kept strictly separate from DealMethod — see the taxonomy note in CLAUDE.md.
+enum ListingType {
+  ANY // explicitly "open to negotiation" — method decided in the ticket
+  MINT
+  TOKEN_TRANSFER
+  WALLET_SUBMIT
+  WALLET_SURRENDER
+}
+
+enum ListingStatus {
+  ACTIVE
+  DELISTED
+  FULFILLED
+  EXPIRED
+}
+
+/// "3 for $15 for all" is not "3 for $15 for each". Always render the
+/// resolved total in the UI so this cannot be misread.
+enum PriceType {
+  FOR_EACH
+  FOR_ALL
+}
+
+/// Settlement asset allowlist — Solana network. Reject anything outside it.
+/// Separate from the *project's* chain, which is free text on Listing/Deal.
+enum PaymentAsset {
+  SOL
+  USDC
+  USDT
+}
+
+enum SpotType {
+  GTD // guaranteed mint spot
+  FCFS // first come, first served — over-allocation is not refundable
+}
+
+/// The precise escrow flow, confirmed by both parties inside the ticket.
+/// Never auto-derived from ListingType. Money flows per docs/deal-methods.md.
+enum DealMethod {
+  DISCORD_SURRENDER
+  WALLET_SURRENDER
+  WALLET_SUBMIT
+  MINT_FOR_YOU
+  PRESALE
+  CODE // flow still undocumented — do not implement (docs/deal-methods.md §6)
+  OTC
+}
+
+/// The 12 lifecycle states, in order. Do not add, rename, or reorder without
+/// asking — see "Deal Lifecycle" in CLAUDE.md. The server derives state; a
+/// client request never sets it directly.
+enum DealStatus {
+  OPEN
+  CLAIMED
+  TERMS_LOCKED
+  AWAITING_PAYMENT
+  FUNDED
+  DELIVERING
+  AWAITING_MINT // deals sit here for days or weeks — this is normal
+  AWAITING_CONFIRMATION
+  COMPLETED
+  DISPUTED
+  REFUNDED
+  CANCELLED
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  WITHDRAWN
+  EXPIRED
+}
+
+enum ProofKind {
+  BUYER_PAYMENT // deal amount + MM fee (+ mint price on some methods)
+  SELLER_COLLATERAL
+  MM_RELEASE // MM paying the seller out
+  MM_REFUND // MM returning funds to the buyer
+  MM_COLLATERAL_RETURN
+  SELLER_NFT_TRANSFER // Mint For You / OTC — NFT sent, not currency
+}
+
+enum ProofStatus {
+  SUBMITTED // awaiting MM review — NEVER advances deal state
+  CONFIRMED // an MM opened the reference and verified it personally
+  REJECTED // MM says it does not check out
+}
+
+/// Every fund movement and every state change writes one TransactionLog row.
+enum TransactionAction {
+  DEAL_CREATED
+  DEAL_CLAIMED
+  TERMS_LOCKED
+  PROOF_SUBMITTED
+  PROOF_CONFIRMED
+  PROOF_REJECTED
+  DEAL_FUNDED
+  HANDOVER_DECLARED
+  DELIVERY_MARKED
+  RECEIPT_CONFIRMED
+  FUNDS_RELEASED
+  COLLATERAL_RETURNED
+  COLLATERAL_FORFEITED
+  REFUND_ISSUED
+  MM_FEE_TAKEN
+  DEAL_CANCELLED
+  DEAL_ESCALATED
+  DISPUTE_RULED
+  ADMIN_OVERRIDE
+}
+
+enum MessageKind {
+  USER
+  SYSTEM // system bot: deal embeds, fee calc, timer notices
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+model User {
+  id              String  @id @default(cuid())
+  /// Discord OAuth is the primary (and only) sign-in. No wallet sign-in.
+  discordId       String  @unique
+  discordUsername String
+  displayName     String?
+  avatarUrl       String?
+
+  role   UserRole   @default(USER)
+  status UserStatus @default(ACTIVE)
+
+  // --- middleman profile fields (null/false for ordinary users) ---
+  /// Published working hours, e.g. "09:00-21:00 UTC" or "flexible".
+  workingHoursUtc String?
+  /// Drives the verified-MM badge on the canonical roster page, which is the
+  /// anti-impersonation reference. Impersonation is the top threat.
+  isVerifiedMm    Boolean @default(false)
+  tradesSecured   Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  wallets  UserWallet[]
+  accounts Account[]
+  sessions Session[]
+
+  listings Listing[]
+  offers   Offer[]
+
+  buyerDeals     Deal[] @relation("DealBuyer")
+  sellerDeals    Deal[] @relation("DealSeller")
+  middlemanDeals Deal[] @relation("DealMiddleman")
+  escalatedDeals Deal[] @relation("DealEscalatedBy")
+
+  submittedProofs PaymentProof[] @relation("ProofSubmittedBy")
+  verifiedProofs  PaymentProof[] @relation("ProofVerifiedBy")
+
+  transactionLogs TransactionLog[]
+  dealMessages    DealMessage[]
+  vouchesWritten  Vouch[]          @relation("VouchAuthor")
+  vouchesReceived Vouch[]          @relation("VouchMiddleman")
+  settingsUpdated AdminSetting[]
+
+  @@index([role, isVerifiedMm])
+  @@index([status])
+}
+
+/// Replaces a single User.primaryWalletAddress field. Modelled as its own
+/// table so the same address appearing under two accounts is detectable —
+/// that is the alt-account / same-person signal the Discord tracks manually.
+model UserWallet {
+  id      String  @id @default(cuid())
+  userId  String
+  /// Plain-text reference string that humans read. The platform never parses,
+  /// resolves, validates against a chain, or derives any meaning from it, and
+  /// never holds the corresponding key.
+  address String
+  label   String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, address])
+  /// Non-unique on purpose: a collision here IS the alt-account flag.
+  @@index([address])
+}
+
+// --- NextAuth (Discord OAuth) -----------------------------------------------
+// These three carry onDelete: Cascade rather than Restrict. Deliberate
+// exception: session/token rows are transient auth state, not audit data.
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Marketplace
+// ---------------------------------------------------------------------------
+
+/// One model for both /buy and /sell — the commands share an identical field
+/// set and differ only by `side`. One form component, not two.
+model Listing {
+  id       String      @id @default(cuid())
+  side     ListingSide
+  authorId String
+
+  // --- required listing fields ---
+  item      String
+  /// The PROJECT's network (Ethereum, Solana, Base, Robinhood...). This is NOT
+  /// the settlement network — a Base project still settles in SOL/USDC/USDT on
+  /// Solana. Free text, not an enum: new chains appear constantly.
+  chain     String
+  /// Smallest unit of `payment`. `price` + `payment` travel together.
+  price     BigInt
+  priceType PriceType
+  /// Settlement asset. Distinct from `chain` above — these get confused
+  /// constantly, so label them separately in the UI.
+  payment   PaymentAsset
+  specific  SpotType
+  type      ListingType
+
+  // --- optional listing fields ---
+  quantity      Int     @default(1)
+  /// Seller's pledged collateral, in `payment` units. Null means "None".
+  /// The configured per-method/tier minimum is enforced in app code, not here
+  /// (it is an AdminSetting, never a hardcoded value).
+  collateral    BigInt?
+  /// External URL, usually x.com.
+  projectLink   String?
+  /// Whether the poster accepts offers. Sellers negotiate up, buyers down.
+  acceptsOffers Boolean @default(false)
+  // TODO: a 12th optional /buy//sell field exists but is still unidentified.
+  // Confirm what it is before finalizing — do not invent one.
+
+  // --- derived / system ---
+  status        ListingStatus @default(ACTIVE)
+  /// prem-listing: paid/promoted tier, granted via an admin surface.
+  promoted      Boolean       @default(false)
+  promotedUntil DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  expiresAt     DateTime?
+
+  author User    @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  offers Offer[]
+  deals  Deal[]
+
+  @@index([side, status])
+  @@index([status, createdAt])
+  @@index([status, promoted, promotedUntil])
+  @@index([chain])
+  @@index([type])
+  @@index([authorId])
+}
+
+/// Shown only when the listing's author set acceptsOffers.
+model Offer {
+  id        String @id @default(cuid())
+  listingId String
+  offererId String
+
+  amount  BigInt
+  asset   PaymentAsset
+  message String?
+
+  status      OfferStatus @default(PENDING)
+  createdAt   DateTime    @default(now())
+  respondedAt DateTime?
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  offerer User    @relation(fields: [offererId], references: [id], onDelete: Restrict)
+
+  @@index([listingId, status])
+  @@index([offererId])
+}
+
+// ---------------------------------------------------------------------------
+// Deal rooms
+// ---------------------------------------------------------------------------
+
+/// One Deal == one Deal Room == one Discord ticket channel.
+/// Participants: buyer, seller, assigned middleman, system bot. Nobody else
+/// reads it. Every deal-scoped query goes through assertDealParticipant().
+model Deal {
+  id String @id @default(cuid())
+
+  /// Human-facing display string generated from the real fields below
+  /// (mm / batch / username / project). Rendered only.
+  /// NEVER parse this for logic — read the actual columns instead.
+  reference String @unique
+
+  /// NOT @unique. Many tickets share one batch number — it mirrors the Discord
+  /// ticket-category numbering (`08-buyer-project`, `akla-08-...`), where a
+  /// batch groups concurrent tickets. Indexed for queue views, not constrained.
+  batchNumber Int
+
+  /// Null when a deal is opened directly rather than via Quick Buy / Quick Sell.
+  listingId   String?
+  buyerId     String
+  sellerId    String
+  /// Null until a middleman claims the ticket and joins the room.
+  middlemanId String?
+
+  status DealStatus @default(OPEN)
+
+  // --- terms (locked at funding; later changes need both parties'
+  //     re-confirmation plus a TransactionLog entry) ---
+  projectName String
+  /// The project's network — free text, same distinction as Listing.chain.
+  chain       String
+
+  /// The precise escrow flow. Nullable on purpose: it stays unset until BOTH
+  /// parties explicitly confirm it, and is never auto-derived from
+  /// listing.type — that mapping only supplies a UI default.
+  method                    DealMethod?
+  methodConfirmedByBuyerAt  DateTime?
+  methodConfirmedBySellerAt DateTime?
+
+  /// All amounts are smallest-unit BigInt denominated in `asset`.
+  /// dealAmount excludes MM fee and mint price — see the vocabulary in
+  /// CLAUDE.md. Which of these the buyer actually pays depends on the
+  /// confirmed method (docs/deal-methods.md).
+  dealAmount       BigInt
+  mmFee            BigInt
+  mintPrice        BigInt?
+  collateralAmount BigInt?
+  asset            PaymentAsset
+
+  quantity  Int       @default(1)
+  specific  SpotType
+  priceType PriceType
+
+  /// Drives the verification window, release timers, and mint-day reminders.
+  /// Nullable and mutable: projects delay, sometimes by months.
+  mintAt DateTime?
+
+  // --- lifecycle timestamps ---
+  claimedAt     DateTime?
+  termsLockedAt DateTime?
+  fundedAt      DateTime?
+  completedAt   DateTime?
+  cancelledAt   DateTime?
+
+  /// Set when a private key or Discord credential handover is DECLARED to have
+  /// happened off-platform. The platform never sees the secret itself — only
+  /// that both parties acknowledged the handover, and when.
+  /// Once this is set the deal can no longer be CANCELLED by mutual agreement;
+  /// only dispute resolution applies.
+  privateDataHandedOverAt DateTime?
+
+  // --- dispute escalation (ticket-problem) ---
+  escalatedById    String?
+  escalatedAt      DateTime?
+  escalationReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  listing     Listing? @relation(fields: [listingId], references: [id], onDelete: Restrict)
+  buyer       User     @relation("DealBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
+  seller      User     @relation("DealSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  middleman   User?    @relation("DealMiddleman", fields: [middlemanId], references: [id], onDelete: Restrict)
+  /// A real relation, not a bare id string — the escalator is a User and the
+  /// dispute queue joins on them.
+  escalatedBy User?    @relation("DealEscalatedBy", fields: [escalatedById], references: [id], onDelete: Restrict)
+
+  proofs   PaymentProof[]
+  messages DealMessage[]
+  logs     TransactionLog[]
+  vouches  Vouch[]
+
+  @@index([status, createdAt])
+  @@index([middlemanId, status])
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([batchNumber])
+  @@index([status, mintAt])
+}
+
+/// The manual verification record. One row per "sends X and submits Solscan
+/// link" step in docs/deal-methods.md.
+///
+/// A SUBMITTED proof is UNVERIFIED DATA and changes nothing. Only an explicit
+/// middleman confirmation advances deal state. Never auto-confirm — not on a
+/// timer, not in DEMO_MODE, not for any reason.
+///
+/// Access this only through the PaymentVerifier interface (CLAUDE.md); escrow
+/// code must never touch a verifier implementation directly.
+model PaymentProof {
+  id     String    @id @default(cuid())
+  dealId String
+  kind   ProofKind
+
+  submittedById String
+  submittedAt   DateTime @default(now())
+
+  /// Solscan URL or raw tx signature, exactly as the user pasted it. An opaque
+  /// human-readable reference: the server NEVER parses, resolves, or fetches
+  /// it. It is rendered as a link the middleman opens themselves.
+  reference     String
+  /// What the submitter CLAIMS was sent. Not authoritative until confirmed —
+  /// the middleman verifies the real amount by reading the link.
+  claimedAmount BigInt?
+  claimedAsset  PaymentAsset?
+  screenshotUrl String?
+
+  status ProofStatus @default(SUBMITTED)
+
+  /// The MM who personally checked it. Required to leave SUBMITTED — no
+  /// anonymous confirmations.
+  ///
+  /// MUST NOT equal submittedById: nobody verifies their own payment. Prisma's
+  /// PSL cannot express CHECK constraints, so that rule is enforced in
+  /// prisma/migrations/manual/transaction_log_immutable.sql AND in the service
+  /// layer (the SQL is a backstop, not the only guard).
+  verifiedById String?
+  verifiedAt   DateTime?
+  verifierNote String?
+
+  deal        Deal  @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  submittedBy User  @relation("ProofSubmittedBy", fields: [submittedById], references: [id], onDelete: Restrict)
+  verifiedBy  User? @relation("ProofVerifiedBy", fields: [verifiedById], references: [id], onDelete: Restrict)
+
+  @@index([dealId, kind])
+  /// MM review queue.
+  @@index([status, submittedAt])
+  @@index([submittedById])
+}
+
+/// Append-only deal-room transcript. No edit or delete columns by design;
+/// exported verbatim when the ticket closes.
+model DealMessage {
+  id       String  @id @default(cuid())
+  dealId   String
+  /// Null for system-bot messages (deal embeds, fee calc, timer notices).
+  authorId String?
+
+  kind          MessageKind @default(USER)
+  body          String
+  attachmentUrl String?
+
+  createdAt DateTime @default(now())
+
+  deal   Deal  @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  author User? @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([dealId, createdAt])
+  @@index([authorId])
+}
+
+/// Immutable ledger. One row for every fund movement and every state change:
+/// actor, deal, action, amount, before/after state, timestamp, tx reference.
+///
+/// There is deliberately NO updatedAt — rows are never modified. UPDATE and
+/// DELETE are blocked at the database by a trigger that raises, installed in
+/// prisma/migrations/manual/transaction_log_immutable.sql.
+model TransactionLog {
+  id String @id @default(cuid())
+
+  dealId  String?
+  actorId String
+  action  TransactionAction
+
+  amount BigInt?
+  asset  PaymentAsset?
+
+  fromStatus DealStatus?
+  toStatus   DealStatus?
+
+  /// The PaymentProof this entry relates to, when there is one.
+  proofId   String?
+  /// Tx signature / Solscan reference, copied as opaque text for the audit
+  /// trail. Never resolved by the server.
+  reference String?
+  /// Free-form structured detail (ruling notes, admin context, timer id).
+  /// Never put a key, seed phrase, or session token in here.
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+
+  deal  Deal? @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  actor User  @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([dealId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Reputation & config
+// ---------------------------------------------------------------------------
+
+/// Public post-deal testimonial for a middleman (mm-vouches).
+model Vouch {
+  id          String @id @default(cuid())
+  /// Tied to a COMPLETED deal. This is a deliberate improvement over the
+  /// Discord, where anyone can post a vouch — here the deal has to exist.
+  dealId      String
+  authorId    String
+  middlemanId String
+
+  /// NEW PRODUCT DECISION — not present in the Discord source.
+  /// mm-vouches today is freeform text with NO rating scale; a numeric rating
+  /// is an addition to the business process, not a port of it. Left optional
+  /// so vouches migrated from Discord remain valid. Confirm with the product
+  /// owner before making it required or surfacing an aggregate score on MM
+  /// profiles — an average built from partial data would misrepresent MMs.
+  rating Int?
+
+  body      String
+  createdAt DateTime @default(now())
+
+  deal      Deal @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  author    User @relation("VouchAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  middleman User @relation("VouchMiddleman", fields: [middlemanId], references: [id], onDelete: Restrict)
+
+  /// Buyer and seller may each vouch once per deal.
+  @@unique([dealId, authorId])
+  @@index([middlemanId, createdAt])
+}
+
+/// Admin-tunable values that must never be hardcoded: collateral minimums per
+/// method/tier (~$5-$7 today), MM fee configuration, per-method release timer
+/// overrides (24h / 6h / 2h).
+///
+/// The DealMethod rule table itself (buyerPays, collateralFormula, the release
+/// windows) lives as TypeScript config per docs/deal-methods.md — one place,
+/// as data, not scattered `if` chains. This model holds only what an admin
+/// changes at runtime.
+model AdminSetting {
+  key         String  @id
+  value       Json
+  description String?
+
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  updatedBy User? @relation(fields: [updatedById], references: [id], onDelete: Restrict)
+}

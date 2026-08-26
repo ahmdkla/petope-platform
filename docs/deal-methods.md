@@ -4,10 +4,18 @@ Source of truth for how money and assets move. Derived from the live Discord
 FAQ. **Every escrow, payment, or state-transition change must be checked
 against this file.**
 
+**How "sends" works on the platform:** every payment step below happens
+**off-platform**. The payer sends funds from their own wallet, pastes the
+Solscan link into the deal room as a `PaymentProof`, and a **middleman opens
+the link, checks it personally, and clicks Confirm**. The platform records
+that human decision — it never verifies, holds, or moves money itself. See
+"Payment Verification Is Manual" in `CLAUDE.md`.
+
 Common to all methods:
-- Payment network: **USDT / USDC on Solana only**
+- Settlement assets: SOL / USDC / USDT on Solana
 - Buyer always pays: `deal amount + MM fee` (some methods add mint price)
-- Both parties submit proof-of-payment tx links; MM verifies on-chain
+- Both parties submit Solscan links; **the assigned MM manually verifies each
+  one and records their confirmation**
 - Seller collateral is held by the MM alongside buyer funds
 - MM never releases funds without explicit confirmation
 - After funds are transferred and the deal closes, the MM and platform
@@ -171,6 +179,63 @@ type DealMethod = {
 Then one shared escrow engine reads the config. Adding or tuning a method
 becomes a config change, not a rewrite — and the rules stay auditable in
 one place.
+
+## PaymentProof — the manual verification record
+
+Every "sends X and submits solscan link" step above becomes one row:
+
+```prisma
+enum ProofKind {
+  BUYER_PAYMENT      // deal amount + MM fee (+ mint price on some methods)
+  SELLER_COLLATERAL
+  MM_RELEASE         // MM paying the seller out
+  MM_REFUND          // MM returning funds to the buyer
+  MM_COLLATERAL_RETURN
+  SELLER_NFT_TRANSFER // Mint For You / OTC — NFT sent, not currency
+}
+
+enum ProofStatus {
+  SUBMITTED   // awaiting MM review — NEVER advances deal state
+  CONFIRMED   // an MM opened it and verified it
+  REJECTED    // MM says it does not check out
+}
+
+model PaymentProof {
+  id        String      @id @default(cuid())
+  dealId    String
+  kind      ProofKind
+  submittedById String
+  submittedAt   DateTime @default(now())
+
+  /// Solscan URL or raw tx signature, exactly as the user pasted it.
+  /// Treated as an opaque human-readable reference. The platform does NOT
+  /// parse, resolve, or call out to it.
+  reference String
+  /// What the submitter claims was sent. Not authoritative until confirmed.
+  claimedAmount BigInt?
+  claimedAsset  PaymentAsset?
+  screenshotUrl String?
+
+  status      ProofStatus @default(SUBMITTED)
+  /// The MM who personally checked it. Required to leave SUBMITTED.
+  verifiedById String?
+  verifiedAt   DateTime?
+  verifierNote String?
+
+  @@index([dealId, kind])
+  @@index([status, submittedAt])   // MM review queue
+}
+```
+
+**Rules**
+- A `SUBMITTED` proof changes nothing. Only an MM confirmation advances state.
+- `verifiedById` must be the deal's assigned MM (or an admin), and must never
+  equal `submittedById` — no self-verification.
+- Confirming or rejecting writes a `TransactionLog` row naming the verifier.
+- A rejected proof can be superseded by a new submission; never edited or
+  deleted.
+- `reference` is displayed as a clickable link for the MM to open **manually**.
+  The server never fetches it.
 
 ## Open Questions to Resolve
 - **Code method flow** (above) — still undocumented

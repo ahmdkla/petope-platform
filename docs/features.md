@@ -84,7 +84,12 @@ Must contain:
 - The pinned deal terms card (locked after funding)
 - Realtime chat with mentions and unread badges
 - A visible **status timeline** showing the current lifecycle state
-- Payment proof submission (tx signature input, verified on-chain)
+- **Payment proof submission** — a text field for a Solscan link, plus optional
+  screenshot. Renders as a clickable link the MM opens themselves. The server
+  never fetches it and never auto-verifies.
+- **MM verification panel** — for the assigned MM only: each submitted proof
+  with Confirm / Reject buttons and a note field. This is the manual step the
+  whole product hinges on; make it fast and unambiguous.
 - Countdown timers when a release window is running (2h / 6h / 24h)
 - Action buttons gated by role and state (Claim, Confirm Payment, Mark
   Delivered, Confirm Receipt, Release Funds, Refund, Escalate)
@@ -192,7 +197,8 @@ v1** — recommend keeping this in Discord and linking out.
 2. Listings board with Quick Buy / Quick Sell
 3. Deal rooms + lifecycle state machine, starting with **OTC** (simplest
    method, no mint dependency)
-4. Solana payment verification + transaction log
+4. PaymentProof submission + MM manual verification panel + transaction log
+   (no wallet, no RPC — see `CLAUDE.md`)
 5. Remaining deal methods via the config-driven engine
 6. Timers, notifications, mint schedule
 7. Vouches, last-sales feed, scammer reports
