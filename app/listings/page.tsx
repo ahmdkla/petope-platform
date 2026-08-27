@@ -8,6 +8,10 @@ import { ListingFilters } from "./listing-filters";
 import { ListingCard } from "./listing-card";
 import { SideTabs } from "./side-tabs";
 import { EmptyState } from "@/components/ui";
+import { getListingDemandMap } from "@/lib/listing-demand";
+import { getMmFeeConfig } from "@/lib/admin-settings";
+import { computeMmFee } from "@/lib/mm-fee";
+import { resolveTotal } from "@/lib/money";
 import { Store, Plus } from "lucide-react";
 
 export const metadata: Metadata = { title: "Listings — EXSAVERSE" };
@@ -33,7 +37,8 @@ export default async function ListingsPage({
 
   const where: Prisma.ListingWhereInput = {
     side,
-    status: { in: ["ACTIVE", "IN_DEAL"] },
+    // Sold-out listings stay visible; they just take no new deals.
+    status: { in: ["ACTIVE", "SOLD_OUT"] },
     ...(sp.chain ? { chain: sp.chain } : {}),
     ...(sp.type && sp.type !== "ALL"
       ? { type: sp.type as Prisma.EnumListingTypeFilter["equals"] }
@@ -53,13 +58,19 @@ export default async function ListingsPage({
       take: 100,
     }),
     db.listing.findMany({
-      where: { status: { in: ["ACTIVE", "IN_DEAL"] } },
+      where: { status: { in: ["ACTIVE", "SOLD_OUT"] } },
       select: { chain: true },
       distinct: ["chain"],
       orderBy: { chain: "asc" },
     }),
-    db.listing.count({ where: { side: "BUY", status: { in: ["ACTIVE", "IN_DEAL"] } } }),
-    db.listing.count({ where: { side: "SELL", status: { in: ["ACTIVE", "IN_DEAL"] } } }),
+    db.listing.count({ where: { side: "BUY", status: { in: ["ACTIVE", "SOLD_OUT"] } } }),
+    db.listing.count({ where: { side: "SELL", status: { in: ["ACTIVE", "SOLD_OUT"] } } }),
+  ]);
+
+  // Batched so the feed does not fire two queries per card.
+  const [demandMap, feeConfig] = await Promise.all([
+    getListingDemandMap(listings.map((l) => l.id)),
+    getMmFeeConfig(),
   ]);
 
   const filtered = Boolean(sp.chain || (sp.type && sp.type !== "ALL") || (sp.specific && sp.specific !== "ALL") || sp.q);
@@ -101,9 +112,33 @@ export default async function ListingsPage({
             />
           ) : (
             <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {listings.map((l) => (
-                <ListingCard key={l.id} listing={l} currentUserId={user?.id ?? null} />
-              ))}
+              {listings.map((l) => {
+                const demand = demandMap.get(l.id) ?? {
+                  quantityRemaining: l.quantityRemaining,
+                  activeDeals: 0,
+                  spotsInFlight: 0,
+                  oversubscribed: false,
+                };
+                // Projected for taking every remaining spot.
+                const spots = l.quantityRemaining || l.quantity;
+                const estimate = computeMmFee(
+                  {
+                    dealAmount: resolveTotal(l.price, l.priceType, spots),
+                    collateral: l.collateral,
+                    asset: l.payment,
+                  },
+                  feeConfig,
+                );
+                return (
+                  <ListingCard
+                    key={l.id}
+                    listing={l}
+                    currentUserId={user?.id ?? null}
+                    demand={demand}
+                    feeEstimate={estimate.fee}
+                  />
+                );
+              })}
             </div>
           )}
         </div>

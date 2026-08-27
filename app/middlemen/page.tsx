@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { Avatar, Badge } from "@/components/ui";
 import { ShieldAlert, BadgeCheck, Clock3, Handshake, MessageSquareQuote } from "lucide-react";
+import { shiftStatus } from "@/lib/shifts";
 
 export const metadata: Metadata = {
   title: "Middleman roster — EXSAVERSE",
@@ -31,11 +32,22 @@ export default async function MiddlemenPage() {
     orderBy: [{ role: "asc" }, { tradesSecured: "desc" }],
   });
 
+  // Shift windows are absolute UTC, so this is deterministic server-side and
+  // the same for every viewer. The page is already force-dynamic.
+  const onShiftNow = middlemen.filter((m) => shiftStatus(m.workingHoursUtc).onShift).length;
+
   return (
     <AppShell>
       <PageHeader
         title="Middleman roster"
         description="This page is the only authoritative list of EXSAVERSE middlemen."
+        actions={
+          onShiftNow > 0 ? (
+            <Badge tone="ok">
+              {onShiftNow} on shift now
+            </Badge>
+          ) : null
+        }
       />
 
       <PageBody>
@@ -96,12 +108,22 @@ export default async function MiddlemenPage() {
                   />
                 </dl>
 
-                <p className="mt-4 flex items-center gap-2 border-t border-line pt-4 text-meta text-ink-muted">
+                <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-4">
                   <Clock3 aria-hidden className="size-4 shrink-0 text-ink-faint" strokeWidth={1.75} />
-                  <span className="font-mono">
+                  <span className="font-mono text-meta text-ink-muted">
                     {m.workingHoursUtc ?? "hours not published"}
                   </span>
-                </p>
+                  {(() => {
+                    // Shifts are absolute UTC windows, so this is the same
+                    // answer for every viewer.
+                    const s = shiftStatus(m.workingHoursUtc);
+                    return s.onShift ? (
+                      <Badge tone="ok">{s.label}</Badge>
+                    ) : m.workingHoursUtc ? (
+                      <span className="text-meta text-ink-faint">{s.label}</span>
+                    ) : null;
+                  })()}
+                </div>
               </article>
             ))}
           </div>

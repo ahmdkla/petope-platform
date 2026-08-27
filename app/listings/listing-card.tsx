@@ -4,6 +4,8 @@ import { ExternalLink, Layers, Package } from "lucide-react";
 import { formatAmount, formatMoney, resolveTotal, describePriceType } from "@/lib/money";
 import { LISTING_TYPE_LABEL } from "@/lib/listing-meta";
 import { Avatar, Badge } from "@/components/ui";
+import { DemandLine, FeeBreakdown } from "@/components/fee-breakdown";
+import type { ListingDemand } from "@/lib/listing-demand";
 import { ListingActions } from "./listing-actions";
 
 export type ListingRow = Listing & {
@@ -17,13 +19,19 @@ export type ListingRow = Listing & {
 export function ListingCard({
   listing: l,
   currentUserId,
+  demand,
+  feeEstimate,
 }: {
   listing: ListingRow;
   currentUserId: string | null;
+  demand: ListingDemand;
+  /** Projected fee for taking every remaining spot. */
+  feeEstimate: bigint;
 }) {
-  const total = resolveTotal(l.price, l.priceType, l.quantity);
+  const total = resolveTotal(l.price, l.priceType, l.quantityRemaining || l.quantity);
   const isOwner = currentUserId === l.authorId;
   const sold = l.quantity - l.quantityRemaining;
+  const soldOut = l.status === "SOLD_OUT" || l.quantityRemaining < 1;
 
   return (
     <article
@@ -42,7 +50,10 @@ export function ListingCard({
               {l.item}
             </h3>
           </div>
-          {l.promoted ? <Badge tone="accent">Promoted</Badge> : null}
+          <span className="flex shrink-0 flex-col items-end gap-1.5">
+            {l.promoted ? <Badge tone="accent">Promoted</Badge> : null}
+            {soldOut ? <Badge tone="danger">Sold out</Badge> : null}
+          </span>
         </div>
 
         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -52,47 +63,51 @@ export function ListingCard({
           </Badge>
           <Badge tone={l.specific === "GTD" ? "ok" : "warn"}>{l.specific}</Badge>
           <Badge tone="neutral">{LISTING_TYPE_LABEL[l.type]}</Badge>
-          {l.status === "IN_DEAL" ? <Badge tone="info">In deal</Badge> : null}
+        </div>
+
+        {/* Supply and competition, before any price talk. */}
+        <div className="mt-3">
+          <DemandLine
+            quantityRemaining={l.quantityRemaining}
+            activeDeals={demand.activeDeals}
+            oversubscribed={demand.oversubscribed}
+          />
         </div>
 
         {/* Price leads; the resolved total sits beside it so "for all" vs
             "each" cannot be misread. */}
-        <div className="mt-5 flex items-end justify-between gap-3 rounded-lg border border-line bg-raised px-4 py-3">
+        <div className="mt-4 flex items-end justify-between gap-3">
           <div>
             <p className="text-meta text-ink-faint">
-              Total for {l.quantity} {l.quantity === 1 ? "spot" : "spots"}
+              {formatAmount(l.price, l.payment)} {l.payment}{" "}
+              {describePriceType(l.priceType)}
             </p>
             <p className="mt-0.5 font-mono tnum text-section-lg font-semibold text-ink">
               {formatMoney(total, l.payment)}
             </p>
           </div>
-          <p className="pb-1 text-right font-mono tnum text-meta text-ink-muted">
-            {formatAmount(l.price, l.payment)} {l.payment}
-            <br />
-            <span className="text-ink-faint">{describePriceType(l.priceType)}</span>
-          </p>
+          {sold > 0 ? (
+            <p className="flex items-center gap-1.5 pb-1 text-meta text-ink-faint">
+              <Package aria-hidden className="size-3.5" strokeWidth={2} />
+              <span className="font-mono tnum">
+                {sold}/{l.quantity} sold
+              </span>
+            </p>
+          ) : null}
         </div>
 
-        <dl className="mt-4 grid grid-cols-2 gap-3 text-meta">
-          <div>
-            <dt className="text-ink-faint">Collateral</dt>
-            <dd className="mt-0.5 font-mono tnum text-ink">
-              {l.collateral ? formatMoney(l.collateral, l.payment) : "None"}
-            </dd>
-          </div>
-          <div>
-            <dt className="flex items-center gap-1.5 text-ink-faint">
-              <Package aria-hidden className="size-3.5" strokeWidth={2} />
-              Remaining
-            </dt>
-            <dd className="mt-0.5 font-mono tnum text-ink">
-              {l.quantityRemaining}
-              {sold > 0 ? (
-                <span className="text-ink-faint"> of {l.quantity}</span>
-              ) : null}
-            </dd>
-          </div>
-        </dl>
+        <FeeBreakdown
+          className="mt-4"
+          estimate
+          lines={{
+            dealAmount: total,
+            mmFee: feeEstimate,
+            collateral: l.collateral ?? 0n,
+            mintPrice: 0n,
+            asset: l.payment,
+            atFloor: false,
+          }}
+        />
 
         {l.projectLink ? (
           <a
@@ -139,6 +154,9 @@ export function ListingCard({
           acceptsOffers={l.acceptsOffers}
           status={l.status}
           asset={l.payment}
+          quantityRemaining={l.quantityRemaining}
+          priceType={l.priceType}
+          oversubscribed={demand.oversubscribed}
         />
       </footer>
     </article>

@@ -17,7 +17,8 @@ import {
   Select,
 } from "@/components/ui";
 import { DEAL_METHOD_RULES, SELECTABLE_METHODS } from "@/lib/deal-methods";
-import { parseAmount, formatAmount } from "@/lib/money";
+import { parseAmount, formatAmount, formatMoney } from "@/lib/money";
+import { computeMmFee, type MmFeeConfig } from "@/lib/mm-fee";
 import type { ActorRole } from "@/lib/deal-transitions";
 
 /**
@@ -28,9 +29,11 @@ import type { ActorRole } from "@/lib/deal-transitions";
 export function MethodConfirmation({
   deal,
   role,
+  feeConfig,
 }: {
   deal: Deal;
   role: ActorRole;
+  feeConfig: MmFeeConfig;
 }) {
   const isParty = role === "BUYER" || role === "SELLER";
   const isMm = role === "MIDDLEMAN" || role === "ADMIN";
@@ -48,7 +51,7 @@ export function MethodConfirmation({
         </Note>
       )}
 
-      {isMm ? <ProposeTerms deal={deal} /> : null}
+      {isMm ? <ProposeTerms deal={deal} feeConfig={feeConfig} /> : null}
     </Card>
   );
 }
@@ -143,16 +146,19 @@ function ConfirmRow({ label, at }: { label: string; at: Date | null }) {
 }
 
 /** Middleman-only: propose the method and the money terms that go with it. */
-function ProposeTerms({ deal }: { deal: Deal }) {
+function ProposeTerms({
+  deal,
+  feeConfig,
+}: {
+  deal: Deal;
+  feeConfig: MmFeeConfig;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(!deal.method);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const [method, setMethod] = useState(deal.method ?? SELECTABLE_METHODS[0].id);
-  const [mmFee, setMmFee] = useState(
-    deal.mmFee > 0n ? formatAmount(deal.mmFee, deal.asset) : "",
-  );
   const [collateral, setCollateral] = useState(
     deal.collateralAmount ? formatAmount(deal.collateralAmount, deal.asset) : "",
   );
@@ -166,15 +172,23 @@ function ProposeTerms({ deal }: { deal: Deal }) {
   const rule = DEAL_METHOD_RULES[method];
   const changing = deal.method !== null && deal.method !== method;
 
+  /**
+   * Preview only. The server recomputes this from the same config on write —
+   * a fee is never accepted from the client, so nothing here is authoritative.
+   */
+  const preview = computeMmFee(
+    {
+      dealAmount: deal.dealAmount,
+      collateral: collateral.trim() === "" ? null : parseAmount(collateral, deal.asset),
+      asset: deal.asset,
+    },
+    feeConfig,
+  );
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
-    const fee = parseAmount(mmFee, deal.asset);
-    if (fee === null || fee <= 0n) {
-      setError(`Enter the MM fee in ${deal.asset}.`);
-      return;
-    }
     const col = collateral.trim() === "" ? null : parseAmount(collateral, deal.asset);
     if (collateral.trim() !== "" && col === null) {
       setError(`Collateral must be an amount in ${deal.asset}.`);
@@ -189,7 +203,6 @@ function ProposeTerms({ deal }: { deal: Deal }) {
     startTransition(async () => {
       const res = await proposeTerms(deal.id, {
         method,
-        mmFee: fee,
         collateralAmount: col,
         mintPrice: mp,
         mintAt: mintAt ? new Date(mintAt) : null,
@@ -239,18 +252,6 @@ function ProposeTerms({ deal }: { deal: Deal }) {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="mmFee">MM fee ({deal.asset})</Label>
-          <Input
-            id="mmFee"
-            inputMode="decimal"
-            value={mmFee}
-            onChange={(e) => setMmFee(e.target.value)}
-            required
-          />
-          <Hint>Paid by the buyer on top of the deal amount.</Hint>
-        </div>
-
-        <div className="space-y-1.5">
           <Label htmlFor="collateral">Collateral ({deal.asset})</Label>
           <Input
             id="collateral"
@@ -263,6 +264,24 @@ function ProposeTerms({ deal }: { deal: Deal }) {
             {rule.requiresCollateral
               ? `Required for ${rule.label}. Formula: ${rule.collateralFormula.replace(/_/g, " ")}.`
               : `${rule.label} does not use collateral.`}
+          </Hint>
+        </div>
+
+        {/* Read-only: the fee is computed server-side and never accepted from
+            a client. This mirrors the calculation so the middleman can see the
+            effect of the collateral they are setting. */}
+        <div className="space-y-1.5">
+          <Label htmlFor="fee-preview">MM fee ({deal.asset})</Label>
+          <output
+            id="fee-preview"
+            className="flex h-field items-center rounded-md border border-line bg-card px-3 font-mono tnum text-body text-ink"
+          >
+            {formatMoney(preview.fee, deal.asset)}
+          </output>
+          <Hint>
+            {preview.atFloor
+              ? `Minimum fee for ${deal.asset}. ${feeConfig.percentBasisPoints / 100}% of ${formatMoney(preview.base, deal.asset)} would be lower.`
+              : `${feeConfig.percentBasisPoints / 100}% of ${formatMoney(preview.base, deal.asset)} (deal amount plus collateral). Paid by the buyer on top.`}
           </Hint>
         </div>
 

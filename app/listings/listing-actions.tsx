@@ -16,6 +16,9 @@ export function ListingActions({
   acceptsOffers,
   status,
   asset,
+  quantityRemaining,
+  priceType,
+  oversubscribed,
 }: {
   listingId: string;
   side: ListingSide;
@@ -24,6 +27,9 @@ export function ListingActions({
   acceptsOffers: boolean;
   status: ListingStatus;
   asset: PaymentAsset;
+  quantityRemaining: number;
+  priceType: "FOR_EACH" | "FOR_ALL";
+  oversubscribed: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -31,7 +37,8 @@ export function ListingActions({
   const [offerOpen, setOfferOpen] = useState(false);
   const [confirmDelist, setConfirmDelist] = useState(false);
 
-  const unavailable = status !== "ACTIVE";
+  const unavailable = status !== "ACTIVE" || quantityRemaining < 1;
+  const [spotsOpen, setSpotsOpen] = useState(false);
 
   function run(fn: () => Promise<{ ok: boolean; error?: string } | void>) {
     setError(null);
@@ -54,9 +61,9 @@ export function ListingActions({
         <Button
           size="sm"
           variant="danger"
-          disabled={pending || status === "IN_DEAL"}
+          disabled={pending || status === "SOLD_OUT"}
           onClick={() => setConfirmDelist(true)}
-          title={status === "IN_DEAL" ? "This listing has an open deal" : undefined}
+          title={status === "SOLD_OUT" ? "This listing is sold out" : undefined}
         >
           Delist
         </Button>
@@ -76,9 +83,19 @@ export function ListingActions({
           <Button
             size="sm"
             disabled={pending || unavailable || !signedIn}
-            onClick={() => run(() => quickDeal(listingId))}
+            onClick={() =>
+              // A for-all listing cannot be split, and a single remaining spot
+              // needs no choosing — skip straight to the deal in both cases.
+              priceType === "FOR_ALL" || quantityRemaining === 1
+                ? run(() => quickDeal(listingId, quantityRemaining))
+                : setSpotsOpen(true)
+            }
           >
-            {side === "SELL" ? "Quick Buy" : "Quick Sell"}
+            {status === "SOLD_OUT"
+              ? "Sold out"
+              : side === "SELL"
+                ? "Quick Buy"
+                : "Quick Sell"}
           </Button>
         </>
       )}
@@ -113,6 +130,15 @@ export function ListingActions({
             are unaffected.
           </p>
         </Modal>
+      ) : null}
+
+      {spotsOpen ? (
+        <SpotsDialog
+          listingId={listingId}
+          max={quantityRemaining}
+          oversubscribed={oversubscribed}
+          onClose={() => setSpotsOpen(false)}
+        />
       ) : null}
 
       {offerOpen ? (
@@ -206,6 +232,80 @@ function OfferDialog({
             maxLength={500}
           />
         </div>
+
+        <FormError message={error} />
+      </form>
+    </Modal>
+  );
+}
+
+/**
+ * Choosing how many spots to take. Only shown for for-each listings with more
+ * than one spot left — a for-all price cannot be split.
+ */
+function SpotsDialog({
+  listingId,
+  max,
+  oversubscribed,
+  onClose,
+}: {
+  listingId: string;
+  max: number;
+  oversubscribed: boolean;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const [spots, setSpots] = useState(1);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    startTransition(async () => {
+      const res = await quickDeal(listingId, spots);
+      if (res && !res.ok) setError(res.error);
+      else router.refresh();
+    });
+  }
+
+  return (
+    <Modal
+      title="How many spots?"
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button form="spots-form" type="submit" disabled={pending}>
+            {pending ? "Opening deal" : "Open deal"}
+          </Button>
+        </>
+      }
+    >
+      <form id="spots-form" onSubmit={submit} className="space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="spots">Spots</Label>
+          <Input
+            id="spots"
+            type="number"
+            min={1}
+            max={max}
+            value={spots}
+            onChange={(e) => setSpots(Math.max(1, Math.min(max, Number(e.target.value) || 1)))}
+            autoFocus
+          />
+          <Hint>{max} available. You can take some or all of them.</Hint>
+        </div>
+
+        {oversubscribed ? (
+          <p className="rounded-md border border-warn/25 bg-warn-soft px-3 py-2.5 text-meta text-warn">
+            More spots are already claimed by open deals than this listing has
+            left. Spots are only reserved when a deal is funded, so whoever pays
+            first gets them.
+          </p>
+        ) : null}
 
         <FormError message={error} />
       </form>

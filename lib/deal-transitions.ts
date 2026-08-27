@@ -58,6 +58,11 @@ export type TransitionContext = {
   recordedProofKinds?: ProofKind[];
   /** Injected by the engine so guards never call `new Date()` themselves. */
   now?: Date;
+  /**
+   * Spots still available on the deal's listing, read inside the transaction.
+   * Undefined for deals opened without a listing.
+   */
+  listingQuantityRemaining?: number | null;
 };
 
 export type LedgerEntry = {
@@ -89,6 +94,15 @@ export type TransitionRule = {
    * may. Guards read the method config rather than branching on the method.
    */
   guard?: (ctx: TransitionContext) => string | null;
+  /**
+   * What this transition does to the listing's supply. Intent as data — the
+   * engine performs it inside the same transaction as the status write.
+   *
+   *   reserve — take deal.quantity out of quantityRemaining, mark the deal as
+   *             holding them, and set the listing SOLD_OUT at zero.
+   *   release — give them back, but only if this deal actually reserved any.
+   */
+  supply?: 'reserve' | 'release';
   /**
    * Additional ledger rows for the money that moves on this transition.
    * Every fund movement writes its own immutable row, so a completed deal shows
@@ -174,7 +188,9 @@ export const TRANSITIONS: Record<TransitionId, TransitionRule> = {
     to: 'FUNDED',
     actors: ['MIDDLEMAN'],
     action: 'DEAL_FUNDED',
-    guard: ({ deal, confirmedProofKinds }) => {
+    // Funding is the moment spots leave the listing's supply.
+    supply: 'reserve',
+    guard: ({ deal, confirmedProofKinds, listingQuantityRemaining }) => {
       if (!deal.method) return 'No escrow method is set on this deal.';
       const confirmed = confirmedProofKinds ?? [];
       const missing = requiredProofKinds(deal.method).filter(
@@ -184,6 +200,21 @@ export const TRANSITIONS: Record<TransitionId, TransitionRule> = {
         return `Still waiting on a confirmed proof for: ${missing
           .map((k) => PROOF_KIND_LABEL[k].toLowerCase())
           .join(' and ')}.`;
+      }
+
+      /**
+       * Open deals reserve nothing, so a listing can be oversubscribed and
+       * another buyer may have funded first. Refuse loudly rather than
+       * overselling — this is the backstop for "never silently oversell".
+       */
+      if (
+        listingQuantityRemaining !== undefined &&
+        listingQuantityRemaining !== null &&
+        deal.quantity > listingQuantityRemaining
+      ) {
+        return listingQuantityRemaining === 0
+          ? 'Another buyer funded first and this listing is now sold out. Refund this buyer rather than funding the deal.'
+          : `Only ${listingQuantityRemaining} of the ${deal.quantity} spots on this deal are still available — another buyer funded first. Renegotiate the quantity or refund the buyer.`;
       }
       return null;
     },
@@ -370,6 +401,8 @@ export const TRANSITIONS: Record<TransitionId, TransitionRule> = {
     actors: ['ADMIN'],
     action: 'REFUND_ISSUED',
     destructive: true,
+    // A refunded deal gives its spots back to the listing.
+    supply: 'release',
     guard: ({ deal, recordedProofKinds }) => {
       if (!deal.method) return 'No escrow method is set on this deal.';
       const recorded = recordedProofKinds ?? [];
@@ -404,14 +437,10 @@ export const TRANSITIONS: Record<TransitionId, TransitionRule> = {
           });
         }
       }
-      // The fee is reversed on a refund: the deal did not complete.
-      if (deal.mmFee > 0n) {
-        entries.push({
-          action: 'MM_FEE_REFUNDED',
-          amount: deal.mmFee,
-          note: 'Middleman fee returned to the buyer with the refund.',
-        });
-      }
+      // The MM fee is NOT reversed here. It is non-refundable by default: the
+      // middleman did the work regardless of how the deal ended. The single
+      // exception is the scammer window in app/admin/fee-refunds/, which is the
+      // only path that writes MM_FEE_REFUNDED.
       return entries;
     },
     systemMessage: ({ deal }) => {
@@ -441,6 +470,8 @@ export const TRANSITIONS: Record<TransitionId, TransitionRule> = {
     actors: ['BUYER', 'SELLER', 'MIDDLEMAN'],
     action: 'DEAL_CANCELLED',
     destructive: true,
+    // No-op unless the deal had actually funded and taken spots.
+    supply: 'release',
     guard: ({ deal }) =>
       canStillCancel(deal.privateDataHandedOverAt)
         ? null

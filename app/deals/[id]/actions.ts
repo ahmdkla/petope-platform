@@ -3,10 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, type CurrentUser } from "@/lib/session";
 import { assertDealParticipant } from "@/lib/deal-access";
 import { applyTransition, confirmMethod } from "@/lib/deal-engine";
 import { DEAL_METHOD_RULES } from "@/lib/deal-methods";
+import { calculateMmFee } from "@/lib/admin-settings";
 import type { TransitionId } from "@/lib/deal-transitions";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
@@ -52,7 +53,8 @@ const termsSchema = z.object({
     "CODE",
     "OTC",
   ]),
-  mmFee: z.bigint().positive("The MM fee must be greater than zero"),
+  // mmFee is deliberately ABSENT. It is computed server-side from the deal
+  // amount and collateral — a client-supplied fee is never accepted.
   collateralAmount: z.bigint().nonnegative().nullable(),
   mintPrice: z.bigint().nonnegative().nullable(),
   mintAt: z.date().nullable(),
@@ -71,7 +73,17 @@ export async function proposeTerms(
 ): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You must be signed in." };
+  const res = await proposeTermsAsUser(user, dealId, input);
+  if (res.ok) revalidatePath(`/deals/${dealId}`);
+  return res;
+}
 
+/** The rule, callable with an explicit actor so tests hit the real guards. */
+export async function proposeTermsAsUser(
+  user: CurrentUser,
+  dealId: string,
+  input: unknown,
+): Promise<ActionResult> {
   const deal = await db.deal.findUnique({ where: { id: dealId } });
   if (!deal) return { ok: false, error: "Deal not found." };
 
@@ -100,12 +112,20 @@ export async function proposeTerms(
 
   const methodChanged = deal.method !== data.method;
 
+  // Recomputed on every terms write, because the collateral being set here is
+  // part of the fee base. Frozen once lock_terms passes.
+  const breakdown = await calculateMmFee({
+    dealAmount: deal.dealAmount,
+    collateral: data.collateralAmount,
+    asset: deal.asset,
+  });
+
   await db.$transaction(async (tx) => {
     await tx.deal.update({
       where: { id: dealId },
       data: {
         method: data.method,
-        mmFee: data.mmFee,
+        mmFee: breakdown.fee,
         collateralAmount: data.collateralAmount,
         mintPrice: data.mintPrice,
         mintAt: data.mintAt,
@@ -127,7 +147,6 @@ export async function proposeTerms(
     });
   });
 
-  revalidatePath(`/deals/${dealId}`);
   return { ok: true };
 }
 

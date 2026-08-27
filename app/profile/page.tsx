@@ -34,7 +34,7 @@ export default async function ProfilePage() {
         emailVerified: true,
       },
     }),
-    db.listing.count({ where: { authorId: user.id, status: { in: ["ACTIVE", "IN_DEAL"] } } }),
+    db.listing.count({ where: { authorId: user.id, status: { in: ["ACTIVE", "SOLD_OUT"] } } }),
     db.deal.count({ where: { OR: [{ buyerId: user.id }, { sellerId: user.id }] } }),
     db.userWallet.findMany({
       where: { userId: user.id },

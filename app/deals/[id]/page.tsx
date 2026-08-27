@@ -24,6 +24,10 @@ import {
   requiredRefundProofKinds,
 } from "@/lib/deal-methods";
 import { DeliveryPanel } from "./delivery-panel";
+import { getListingDemand } from "@/lib/listing-demand";
+import { getMmFeeConfig } from "@/lib/admin-settings";
+import { DemandLine } from "@/components/fee-breakdown";
+import { Card, Caution, SectionTitle } from "@/components/ui";
 import { TimersCard, type TimerView } from "./timers-card";
 import { formatMoney } from "@/lib/money";
 
@@ -98,6 +102,11 @@ export default async function DealRoomPage({
   }));
 
   const hasCollateral = (deal.collateralAmount ?? 0n) > 0n;
+
+  // Competing demand on the source listing. Spots reserve only at funding, so
+  // the buyer needs to know before paying whether they are in a race.
+  const demand = deal.listingId ? await getListingDemand(deal.listingId) : null;
+  const feeConfig = await getMmFeeConfig();
 
   // Which proofs matter depends on the phase, and comes from the method config.
   const activeKinds = !deal.method
@@ -206,7 +215,33 @@ export default async function DealRoomPage({
           <TermsCard deal={deal} role={role} />
 
           {deal.status === "CLAIMED" ? (
-            <MethodConfirmation deal={deal} role={role} />
+            <MethodConfirmation deal={deal} role={role} feeConfig={feeConfig} />
+          ) : null}
+
+          {demand && ["AWAITING_PAYMENT", "OPEN", "CLAIMED", "TERMS_LOCKED"].includes(deal.status) ? (
+            <Card className="space-y-3">
+              <SectionTitle>Listing supply</SectionTitle>
+              <DemandLine
+                quantityRemaining={demand.quantityRemaining}
+                activeDeals={demand.activeDeals}
+                oversubscribed={demand.oversubscribed}
+              />
+              <p className="text-meta text-ink-muted">
+                This deal is for{" "}
+                <span className="font-mono tnum text-ink">{deal.quantity}</span>{" "}
+                {deal.quantity === 1 ? "spot" : "spots"}. Spots are reserved only
+                when a deal is funded.
+              </p>
+              {demand.oversubscribed && deal.status === "AWAITING_PAYMENT" ? (
+                <Caution>
+                  {demand.spotsInFlight} spots are claimed across{" "}
+                  {demand.activeDeals} open deals, but only{" "}
+                  {demand.quantityRemaining} remain. Whoever funds first gets
+                  them. If someone else funds before you, the middleman will
+                  refuse this deal and refund you rather than overselling.
+                </Caution>
+              ) : null}
+            </Card>
           ) : null}
 
           <DeliveryPanel

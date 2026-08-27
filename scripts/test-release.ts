@@ -293,7 +293,11 @@ async function main() {
     check('COLLATERAL_FORFEITED written (config says forfeits to buyer)',
       actions.includes('COLLATERAL_FORFEITED'));
     check('collateral NOT returned to the seller', !actions.includes('COLLATERAL_RETURNED'));
-    check('MM fee reversed on refund', actions.includes('MM_FEE_REFUNDED'));
+    // The fee is NON-REFUNDABLE by default: the middleman did the work whatever
+    // the outcome. Returning it requires the scammer exception in
+    // app/admin/fee-refunds/, which is the only path that writes this action.
+    check('MM fee NOT reversed by an ordinary refund',
+      !actions.includes('MM_FEE_REFUNDED'));
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);

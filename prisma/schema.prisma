@@ -62,14 +62,16 @@ enum ListingType {
 
 enum ListingStatus {
   ACTIVE
-  /// Reserved by at least one open deal. Set when Quick Buy / Quick Sell opens
-  /// a ticket, so a second buyer cannot claim the same spots concurrently.
-  /// Returns to ACTIVE if that deal is CANCELLED or REFUNDED and
-  /// quantityRemaining is still above zero.
+  /// DEPRECATED — never written. Listings no longer lock on deal creation:
+  /// spots reserve only at funding, so several buyers compete for one listing.
+  /// Kept so historical rows remain readable.
   IN_DEAL
   DELISTED
-  /// quantityRemaining has reached zero.
+  /// DEPRECATED — superseded by SOLD_OUT. Kept for historical rows.
   FULFILLED
+  /// quantityRemaining has reached zero. Stays visible in the feed but accepts
+  /// no new deals. Returns to ACTIVE if a funded deal is refunded or cancelled.
+  SOLD_OUT
   EXPIRED
 }
 
@@ -570,6 +572,14 @@ model Deal {
   /// The buyer confirming they received what they paid for. Release normally
   /// requires this; once autoReleaseAt passes, buyer silence stops blocking it.
   receiptConfirmedAt DateTime?
+
+  /// When this deal took its spots out of the listing's supply.
+  ///
+  /// Spots reserve at FUNDING, not at deal creation — several buyers may hold
+  /// open deals on the same listing and the first to fund wins. Stamped rather
+  /// than inferred from status history so the release path cannot double-return
+  /// spots for a deal that never reserved any.
+  spotsReservedAt DateTime?
 
   // --- dispute escalation (ticket-problem) ---
   escalatedById    String?

@@ -246,7 +246,6 @@ model PaymentProof {
   - Is `Mint` the same as Mint For You?
   - Do Discord Surrender, Presale, and Code all fall under `Any`?
 - The 12th, unidentified optional field on `/buy` and `/sell`
-- MM fee: flat, percentage, or tiered? Varies by MM or deal size?
 - When `payment` is SOL rather than a stablecoin, how is price volatility
   handled between listing time, funding, and release? (A deal sitting in
   `awaiting_mint` for weeks has real exposure here.)
@@ -255,8 +254,15 @@ model PaymentProof {
 - `price-type` = `for_each` | `for_all`
 - `payment` = SOL | USDC | USDT (Solana network)
 - `collateral`, `quantity`, `project-link`, `offer` are all optional
-- Is the MM fee a flat amount, a percentage, or tiered? Does it vary by MM
-  or by deal size?
+- **MM fee structure.** `base = dealAmount + collateral`;
+  `fee = max(floor, base x 5%)`. Paid by the buyer on top of the deal amount.
+  It does not vary by middleman. Non-refundable by default: the only path that
+  returns it is the scammer exception (admin or main middleman, reason
+  required, within 24h of the deal closing).
+  The percentage, the per-asset floors and the refund window are all stored in
+  `AdminSetting` under `mmFee.config` — never hardcoded. Floors are per-asset
+  because there is no price feed, so a single USD minimum could not be
+  converted for a SOL-denominated deal.
 - Who pays gas/network fees on release?
 - Is collateral ever partially forfeited, or always all-or-nothing?
 - What happens if a project delays its mint indefinitely? (The Discord's

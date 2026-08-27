@@ -1,7 +1,8 @@
 import { Pin, Lock, ExternalLink } from "lucide-react";
 import type { Deal } from "@prisma/client";
 import { Badge, Card, Note, SectionTitle } from "@/components/ui";
-import { formatMoney, describePriceType } from "@/lib/money";
+import { FeeBreakdown } from "@/components/fee-breakdown";
+import { describePriceType } from "@/lib/money";
 import { LISTING_TYPE_LABEL } from "@/lib/listing-meta";
 import {
   BUYER_PAYS_LABEL,
@@ -41,6 +42,19 @@ export function TermsCard({
         )}
       </div>
 
+      {/* Broken out rather than a single total: the fee is charged on top of
+          the deal amount, and the collateral is the seller's, not the buyer's. */}
+      <FeeBreakdown
+        lines={{
+          dealAmount: deal.dealAmount,
+          mmFee: deal.mmFee,
+          collateral: deal.collateralAmount ?? 0n,
+          mintPrice: rule?.buyerPays.includes("mint_price") ? (deal.mintPrice ?? 0n) : 0n,
+          asset: deal.asset,
+          atFloor: false,
+        }}
+      />
+
       <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
         <Field label="Project" value={deal.projectName} />
         <Field label="Project chain" value={deal.chain} />
@@ -50,28 +64,6 @@ export function TermsCard({
           mono
         />
         <Field label="Spot type" value={deal.specific} />
-        <Field label="Deal amount" value={formatMoney(deal.dealAmount, deal.asset)} mono />
-        <Field
-          label="MM fee"
-          value={deal.mmFee > 0n ? formatMoney(deal.mmFee, deal.asset) : "not set"}
-          mono={deal.mmFee > 0n}
-        />
-        <Field
-          label="Collateral"
-          value={
-            deal.collateralAmount
-              ? formatMoney(deal.collateralAmount, deal.asset)
-              : rule?.requiresCollateral
-                ? "required, not set"
-                : "none"
-          }
-          mono={Boolean(deal.collateralAmount)}
-        />
-        <Field
-          label="Mint price"
-          value={deal.mintPrice ? formatMoney(deal.mintPrice, deal.asset) : "not applicable"}
-          mono={Boolean(deal.mintPrice)}
-        />
         <Field
           label="Mint date"
           value={deal.mintAt ? deal.mintAt.toISOString().replace("T", " ").slice(0, 16) + " UTC" : "not set"}

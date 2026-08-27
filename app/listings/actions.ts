@@ -4,9 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, type CurrentUser } from "@/lib/session";
 import { LISTING_TYPE_TO_METHOD } from "@/lib/listing-meta";
 import { resolveTotal } from "@/lib/money";
+import { getCollateralMinimum, getMaxConcurrentDeals } from "@/lib/admin-settings";
 
 const ASSETS = ["SOL", "USDC", "USDT"] as const;
 
@@ -29,6 +30,11 @@ const createListingSchema = z.object({
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
+/** quickDeal additionally reports the deal it opened, so the wrapper can redirect. */
+export type QuickDealResult =
+  | { ok: true; dealId: string }
+  | { ok: false; error: string };
+
 export async function createListing(input: unknown): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You must be signed in to post a listing." };
@@ -47,7 +53,7 @@ export async function createListing(input: unknown): Promise<ActionResult> {
 
   // Collateral minimum is an admin setting, never a hardcoded value.
   if (data.side === "SELL" && data.collateral !== null) {
-    const min = await collateralMinimum();
+    const min = await getCollateralMinimum();
     if (min && data.collateral < min.amount && data.collateral > 0n) {
       return {
         ok: false,
@@ -77,14 +83,6 @@ async function hasAcceptedTerms(userId: string): Promise<boolean> {
   return Boolean(u?.termsAcceptedAt);
 }
 
-async function collateralMinimum(): Promise<{ amount: bigint; asset: string } | null> {
-  const row = await db.adminSetting.findUnique({ where: { key: "collateral.minimum" } });
-  if (!row) return null;
-  const v = row.value as { amount?: number; asset?: string };
-  if (typeof v.amount !== "number" || !v.asset) return null;
-  return { amount: BigInt(v.amount), asset: v.asset };
-}
-
 export async function delistListing(listingId: string): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You must be signed in." };
@@ -97,8 +95,10 @@ export async function delistListing(listingId: string): Promise<ActionResult> {
   if (listing.authorId !== user.id) {
     return { ok: false, error: "Only the author can delist this listing." };
   }
-  if (listing.status === "IN_DEAL") {
-    return { ok: false, error: "This listing has an open deal and cannot be delisted." };
+  // Delisting with deals open is fine now: they no longer hold spots, and the
+  // listing simply stops appearing in the feed. Existing deals run their course.
+  if (listing.status === "SOLD_OUT") {
+    return { ok: false, error: "A sold-out listing has nothing left to delist." };
   }
 
   await db.listing.update({
@@ -162,9 +162,28 @@ export async function makeOffer(input: unknown): Promise<ActionResult> {
  * method must be explicitly confirmed by both parties before terms_locked.
  * No middleman is assigned yet — that happens at `claimed`.
  */
-export async function quickDeal(listingId: string): Promise<ActionResult> {
+export async function quickDeal(
+  listingId: string,
+  spots = 1,
+): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You must be signed in to open a deal." };
+
+  const res = await quickDealAsUser(user, listingId, spots);
+  if (!res.ok) return res;
+
+  // Cache and navigation are the wrapper's concern — the rule above has no
+  // request context when a test calls it directly.
+  revalidatePath("/listings");
+  redirect(`/deals/${res.dealId}`);
+}
+
+/** The rule, callable with an explicit actor so tests hit the real guards. */
+export async function quickDealAsUser(
+  user: CurrentUser,
+  listingId: string,
+  spots = 1,
+): Promise<QuickDealResult> {
   if (user.status !== "ACTIVE") {
     return { ok: false, error: "Your account cannot open deals." };
   }
@@ -174,6 +193,9 @@ export async function quickDeal(listingId: string): Promise<ActionResult> {
 
   const listing = await db.listing.findUnique({ where: { id: listingId } });
   if (!listing) return { ok: false, error: "Listing not found." };
+  if (listing.status === "SOLD_OUT") {
+    return { ok: false, error: "This listing is sold out." };
+  }
   if (listing.status !== "ACTIVE") {
     return { ok: false, error: "This listing is no longer available." };
   }
@@ -185,11 +207,58 @@ export async function quickDeal(listingId: string): Promise<ActionResult> {
     return { ok: false, error: "There are no spots left on this listing." };
   }
 
+  if (!Number.isInteger(spots) || spots < 1) {
+    return { ok: false, error: "Choose how many spots you want." };
+  }
+  if (spots > listing.quantityRemaining) {
+    return {
+      ok: false,
+      error: `Only ${listing.quantityRemaining} ${listing.quantityRemaining === 1 ? "spot is" : "spots are"} left on this listing.`,
+    };
+  }
+
+  /**
+   * A "for all" price cannot be split. "3 for $15 for all" has no defensible
+   * per-spot value, and inventing one would reintroduce exactly the misreading
+   * priceType exists to prevent. Partial purchase is a for-each feature.
+   */
+  if (listing.priceType === "FOR_ALL" && spots !== listing.quantityRemaining) {
+    return {
+      ok: false,
+      error: `This listing is priced for all ${listing.quantityRemaining} spots together, so it cannot be split. Take all ${listing.quantityRemaining} or none.`,
+    };
+  }
+
+  // One open deal per user per listing — otherwise a single buyer could hold
+  // every concurrent slot and freeze out everyone else.
+  const existing = await db.deal.findFirst({
+    where: {
+      listingId,
+      status: { notIn: ["COMPLETED", "CANCELLED", "REFUNDED"] },
+      OR: [{ buyerId: user.id }, { sellerId: user.id }],
+    },
+    select: { id: true },
+  });
+  if (existing) {
+    return { ok: false, error: "You already have an open deal on this listing." };
+  }
+
+  const maxConcurrent = await getMaxConcurrentDeals();
+  const activeCount = await db.deal.count({
+    where: { listingId, status: { notIn: ["COMPLETED", "CANCELLED", "REFUNDED"] } },
+  });
+  if (activeCount >= maxConcurrent) {
+    return {
+      ok: false,
+      error: `This listing already has ${maxConcurrent} open deals, the maximum. Try again if one closes.`,
+    };
+  }
+
   // On a SELL listing the author is the seller and the actor is buying.
   const buyerId = listing.side === "SELL" ? user.id : listing.authorId;
   const sellerId = listing.side === "SELL" ? listing.authorId : user.id;
 
-  const dealAmount = resolveTotal(listing.price, listing.priceType, listing.quantity);
+  const dealAmount = resolveTotal(listing.price, listing.priceType, spots);
 
   const deal = await db.$transaction(async (tx) => {
     const batchNumber = await nextBatchNumber(tx);
@@ -210,17 +279,14 @@ export async function quickDeal(listingId: string): Promise<ActionResult> {
         mmFee: 0n,
         collateralAmount: listing.collateral,
         asset: listing.payment,
-        quantity: listing.quantity,
+        quantity: spots,
         specific: listing.specific,
         priceType: listing.priceType,
       },
     });
 
-    // Reserve the listing so a second buyer cannot claim the same spots.
-    await tx.listing.update({
-      where: { id: listing.id },
-      data: { status: "IN_DEAL" },
-    });
+    // Deliberately NOT reserving the listing here. Spots come out of supply at
+    // funding, so several buyers can compete and the first to pay wins.
 
     await tx.transactionLog.create({
       data: {
@@ -231,6 +297,7 @@ export async function quickDeal(listingId: string): Promise<ActionResult> {
         metadata: {
           via: listing.side === "SELL" ? "quick_buy" : "quick_sell",
           listingId: listing.id,
+          spots,
           suggestedMethod: LISTING_TYPE_TO_METHOD[listing.type],
         },
       },
@@ -239,8 +306,7 @@ export async function quickDeal(listingId: string): Promise<ActionResult> {
     return created;
   });
 
-  revalidatePath("/listings");
-  redirect(`/deals/${deal.id}`);
+  return { ok: true, dealId: deal.id };
 }
 
 /** Batch numbers group concurrent tickets and are deliberately not unique. */

@@ -44,7 +44,23 @@ export async function applyTransition(
   // invisible to that guard. `recorded` additionally covers the middleman's own
   // outgoing-payment records, which cannot be third-party confirmed.
   const { confirmedProofKinds, recordedProofKinds } = await loadProofKinds(dealId);
-  const baseCtx = { role, confirmedProofKinds, recordedProofKinds, now };
+
+  // Read outside the transaction only to render a useful pre-check; the
+  // authoritative read happens inside, where the race actually matters.
+  const listing = deal.listingId
+    ? await db.listing.findUnique({
+        where: { id: deal.listingId },
+        select: { quantityRemaining: true },
+      })
+    : null;
+
+  const baseCtx = {
+    role,
+    confirmedProofKinds,
+    recordedProofKinds,
+    now,
+    listingQuantityRemaining: listing?.quantityRemaining ?? null,
+  };
 
   const check = checkTransition(transitionId, { deal, ...baseCtx });
   if (!check.ok) return { ok: false, error: check.error };
@@ -58,12 +74,62 @@ export async function applyTransition(
     updated = await db.$transaction(async (tx) => {
     // Re-read inside the transaction so two concurrent claims cannot both win.
     const fresh = await tx.deal.findUniqueOrThrow({ where: { id: dealId } });
-    const recheck = checkTransition(transitionId, { deal: fresh, ...baseCtx });
+    /**
+     * Re-read supply inside the transaction and re-run the guard against it.
+     * Two middlemen funding competing deals on the same listing at the same
+     * moment is exactly the case this catches: whichever commits second sees
+     * the decremented figure and is refused.
+     */
+    const freshListing = fresh.listingId
+      ? await tx.listing.findUnique({
+          where: { id: fresh.listingId },
+          select: { id: true, quantityRemaining: true, status: true },
+        })
+      : null;
+
+    const txCtx = {
+      ...baseCtx,
+      listingQuantityRemaining: freshListing?.quantityRemaining ?? null,
+    };
+
+    const recheck = checkTransition(transitionId, { deal: fresh, ...txCtx });
     if (!recheck.ok) throw new TransitionConflict(recheck.error);
 
     // Extra columns the target state stamps on arrival (timer deadlines,
     // handover marks). Config-driven, never hardcoded here.
-    const entered = rule.onEnter?.({ deal: fresh, ...baseCtx }) ?? {};
+    const entered = rule.onEnter?.({ deal: fresh, ...txCtx }) ?? {};
+
+    // --- supply, per the rule's declared intent -----------------------------
+    let spotsStamp: Record<string, Date | null> = {};
+
+    if (rule.supply === 'reserve' && freshListing) {
+      const remaining = freshListing.quantityRemaining - fresh.quantity;
+      await tx.listing.update({
+        where: { id: freshListing.id },
+        data: {
+          quantityRemaining: remaining,
+          // Sold out listings stay visible; they just take no new deals.
+          ...(remaining <= 0 ? { status: 'SOLD_OUT' as const } : {}),
+        },
+      });
+      spotsStamp = { spotsReservedAt: now };
+    }
+
+    if (rule.supply === 'release' && freshListing && fresh.spotsReservedAt) {
+      // Only a deal that actually reserved gives spots back — cancelling an
+      // unfunded deal must not invent supply.
+      const remaining = freshListing.quantityRemaining + fresh.quantity;
+      await tx.listing.update({
+        where: { id: freshListing.id },
+        data: {
+          quantityRemaining: remaining,
+          ...(freshListing.status === 'SOLD_OUT' && remaining > 0
+            ? { status: 'ACTIVE' as const }
+            : {}),
+        },
+      });
+      spotsStamp = { spotsReservedAt: null };
+    }
 
     const next = await tx.deal.update({
       where: { id: dealId },
@@ -72,6 +138,7 @@ export async function applyTransition(
         ...(timestampField ? { [timestampField]: now } : {}),
         ...(transitionId === 'claim' ? { middlemanId: user.id } : {}),
         ...entered,
+        ...spotsStamp,
       },
     });
 
@@ -91,7 +158,7 @@ export async function applyTransition(
     });
 
     // One immutable row per fund movement, beside the transition row itself.
-    for (const entry of rule.ledgerEntries?.({ deal: next, ...baseCtx }) ?? []) {
+    for (const entry of rule.ledgerEntries?.({ deal: next, ...txCtx }) ?? []) {
       await tx.transactionLog.create({
         data: {
           dealId,
@@ -111,7 +178,7 @@ export async function applyTransition(
         dealId,
         authorId: null, // system bot
         kind: 'SYSTEM',
-        body: rule.systemMessage({ deal: next, ...baseCtx }),
+        body: rule.systemMessage({ deal: next, ...txCtx }),
       },
     });
 

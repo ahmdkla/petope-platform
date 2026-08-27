@@ -6,6 +6,85 @@ until this file is updated.
 
 ---
 
+## MM fee: computed server-side, non-refundable by default
+
+**Date:** 2026-08-27
+
+```
+base = dealAmount + collateral
+fee  = max(floor[asset], base x 5%)
+```
+
+Stored in `AdminSetting` under `mmFee.config` — the percentage as **basis
+points** so the arithmetic stays integer, and the floor **per settlement
+asset**. Per-asset because the platform has no price feed and CLAUDE.md forbids
+adding one: a single "$5" minimum cannot be converted for a SOL deal. The SOL
+floor is therefore a hand-set approximation that drifts as SOL moves, and an
+admin retunes it. That is a real limitation, recorded rather than hidden.
+
+**The fee was previously client-supplied.** `termsSchema` accepted `mmFee` from
+the request and wrote it straight through, so a middleman could set any value
+including zero. `mmFee` is now absent from the schema entirely and recomputed on
+every terms write from values the server already holds. The terms form shows a
+read-only preview computed from the same config; nothing it sends is trusted.
+
+**Non-refundable by default.** The `refund` transition previously wrote
+`MM_FEE_REFUNDED` unconditionally, so every refund returned the fee. It no
+longer writes it at all. The single path that does is
+`app/admin/fee-refunds/`, gated on: admin or main middleman, a written reason,
+the deal being closed, and within `refundWindowHours` (24) of it closing. The
+ledger is the record of whether a fee was already refunded — no separate column
+to fall out of step with it.
+
+---
+
+## Spots reserve at funding, not at deal creation
+
+**Date:** 2026-08-27
+
+A listing used to flip to `IN_DEAL` on the first Quick Buy, locking every other
+buyer out until that one deal resolved. One buyer who never paid could freeze a
+listing indefinitely.
+
+Now up to 7 deals (configurable) compete for one listing, one per user, and
+**spots leave supply only at funding**. First to pay wins.
+
+That makes oversubscription an ordinary state rather than a bug, so it is
+surfaced rather than prevented: the listing card and deal room show spots
+remaining against deals competing, and the buyer is warned before paying when
+demand exceeds supply. The backstop is in `mark_funded`'s guard, which re-reads
+supply **inside the transaction** and refuses with a message naming the
+shortfall. Two middlemen funding competing deals at the same moment is exactly
+the case that re-read catches.
+
+`Deal.spotsReservedAt` records whether a deal is holding spots, so the release
+path cannot return supply for a deal that never took any. Cancelling an unfunded
+deal invents nothing.
+
+`ListingStatus.IN_DEAL` and `FULFILLED` are deprecated but kept: Postgres cannot
+drop enum values cleanly, and historical rows must stay readable. The migration
+rewrote existing rows to `ACTIVE` and `SOLD_OUT`.
+
+---
+
+## The lifecycle is displayed as five stages, not twelve states
+
+**Date:** 2026-08-27
+
+The database keeps all 12 states — this is presentation only. A buyer does not
+need to distinguish `awaiting_mint` from `awaiting_confirmation`; they need to
+know which of five things is happening and who is holding it up. Each stage
+carries a sentence naming the party being waited on.
+
+`disputed`, `refunded` and `cancelled` **replace** the timeline with a status
+panel rather than appearing as a step, because they were never on the path. The
+panel shows which stages the deal did reach before it left.
+
+The header status pill keeps the precise state: "Awaiting payment" is not
+jargon, and it is the most informative single element on the page.
+
+---
+
 ## Funding auto-advances; release never does
 
 **Date:** 2026-08-27
