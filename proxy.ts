@@ -15,7 +15,7 @@ import { auth } from '@/lib/auth';
  */
 
 /** Routes that require a signed-in, non-blacklisted account. */
-const PROTECTED = ['/deals', '/listings/new', '/profile', '/queue'];
+const PROTECTED = ['/deals', '/listings/new', '/profile', '/queue', '/admin'];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

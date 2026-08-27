@@ -8,7 +8,11 @@ import {
   DEAL_METHOD_RULES,
   PROOF_KIND_LABEL,
   canStillCancel,
+  isPrivateDataHandover,
   requiredProofKinds,
+  requiredReleaseProofKinds,
+  requiredRefundProofKinds,
+  resolveTimers,
 } from './deal-methods';
 
 /**
@@ -29,6 +33,12 @@ export type TransitionId =
   | 'lock_terms'
   | 'open_payment_window'
   | 'mark_funded'
+  | 'begin_delivery'
+  | 'complete_handover'
+  | 'reach_mint'
+  | 'release_funds'
+  | 'escalate'
+  | 'refund'
   | 'cancel';
 
 export type TransitionContext = {
@@ -40,6 +50,20 @@ export type TransitionContext = {
    * advances nothing, so the funding guard must not be able to see one.
    */
   confirmedProofKinds?: ProofKind[];
+  /**
+   * Kinds with a proof that has NOT been rejected (submitted or confirmed).
+   * The middleman's own MM_RELEASE / MM_REFUND records live here: they cannot
+   * be third-party confirmed, because nobody may verify their own submission.
+   */
+  recordedProofKinds?: ProofKind[];
+  /** Injected by the engine so guards never call `new Date()` themselves. */
+  now?: Date;
+};
+
+export type LedgerEntry = {
+  action: TransactionAction;
+  amount?: bigint | null;
+  note: string;
 };
 
 export type TransitionRule = {
@@ -48,7 +72,13 @@ export type TransitionRule = {
   /** What the actor is told will happen. */
   description: string;
   from: DealStatus[];
-  to: DealStatus;
+  /** A function when the target depends on the method (mint vs no mint). */
+  to: DealStatus | ((ctx: TransitionContext) => DealStatus);
+  /**
+   * Extra columns to write on arrival — timer deadlines, handover stamps.
+   * Config, so a new state cannot be added without deciding what it sets.
+   */
+  onEnter?: (ctx: TransitionContext) => Record<string, Date | null>;
   /** Who may perform it. Admin is always additionally allowed. */
   actors: ActorRole[];
   action: TransactionAction;
@@ -59,6 +89,12 @@ export type TransitionRule = {
    * may. Guards read the method config rather than branching on the method.
    */
   guard?: (ctx: TransitionContext) => string | null;
+  /**
+   * Additional ledger rows for the money that moves on this transition.
+   * Every fund movement writes its own immutable row, so a completed deal shows
+   * the fee and the collateral separately from the release itself.
+   */
+  ledgerEntries?: (ctx: TransitionContext) => LedgerEntry[];
   /** Message the system bot posts into the room afterwards. */
   systemMessage: (ctx: TransitionContext) => string;
 };
@@ -155,12 +191,252 @@ export const TRANSITIONS: Record<TransitionId, TransitionRule> = {
       'All required payments have been verified by the middleman. The deal is funded.',
   },
 
+  begin_delivery: {
+    id: 'begin_delivery',
+    label: 'Start delivery',
+    description:
+      'Opens the handover step. Both parties then acknowledge the off-platform handover once it has happened.',
+    from: ['FUNDED'],
+    to: 'DELIVERING',
+    actors: ['MIDDLEMAN'],
+    action: 'DELIVERY_MARKED',
+    systemMessage: ({ deal }) => {
+      const rule = deal.method ? DEAL_METHOD_RULES[deal.method] : null;
+      return rule
+        ? `Delivery started. ${rule.label}: the handover happens off-platform and both parties confirm it here.`
+        : 'Delivery started.';
+    },
+  },
+
+  complete_handover: {
+    id: 'complete_handover',
+    label: 'Confirm handover complete',
+    description:
+      'Records that the off-platform handover happened. Both parties must have acknowledged it first.',
+    from: ['DELIVERING'],
+    // Methods with no mint event skip straight to confirmation.
+    to: ({ deal }) =>
+      deal.method && DEAL_METHOD_RULES[deal.method].requiresMintEvent
+        ? 'AWAITING_MINT'
+        : 'AWAITING_CONFIRMATION',
+    actors: ['MIDDLEMAN'],
+    action: 'HANDOVER_DECLARED',
+    guard: ({ deal }) => {
+      if (!deal.handoverDeclaredByBuyerAt)
+        return 'The buyer has not acknowledged the handover.';
+      if (!deal.handoverDeclaredBySellerAt)
+        return 'The seller has not acknowledged the handover.';
+      return null;
+    },
+    onEnter: ({ deal, now }) => {
+      const stamps: Record<string, Date | null> = {};
+      // Closing the cancellation window is a one-way door, so it is stamped
+      // only for methods where a secret actually changed hands.
+      if (deal.method && isPrivateDataHandover(deal.method)) {
+        stamps.privateDataHandedOverAt = now ?? new Date();
+      }
+      // No mint event means the confirmation timers start here.
+      if (deal.method && !DEAL_METHOD_RULES[deal.method].requiresMintEvent) {
+        Object.assign(
+          stamps,
+          resolveTimers(deal.method, { now: now ?? new Date(), mintAt: deal.mintAt }),
+        );
+      }
+      return stamps;
+    },
+    systemMessage: ({ deal }) =>
+      deal.method && isPrivateDataHandover(deal.method)
+        ? 'Both parties acknowledged the handover. Private data has changed hands, so this deal can no longer be cancelled by agreement, only through dispute resolution.'
+        : 'Both parties acknowledged the handover.',
+  },
+
+  reach_mint: {
+    id: 'reach_mint',
+    label: 'Mint has happened',
+    description:
+      'Records that the project minted. This starts the release timers, resolved from the method rules.',
+    from: ['AWAITING_MINT'],
+    to: 'AWAITING_CONFIRMATION',
+    actors: ['MIDDLEMAN'],
+    action: 'DELIVERY_MARKED',
+    guard: ({ deal, now }) => {
+      if (!deal.mintAt) return 'No mint date is set on this deal.';
+      if (deal.mintAt > (now ?? new Date())) {
+        return 'The mint date has not passed yet. Update it if the project moved.';
+      }
+      return null;
+    },
+    // Deadlines are resolved ONCE, here, and stored as absolute values.
+    onEnter: ({ deal, now }) =>
+      deal.method
+        ? resolveTimers(deal.method, { now: now ?? new Date(), mintAt: deal.mintAt })
+        : {},
+    systemMessage: ({ deal }) => {
+      const rule = deal.method ? DEAL_METHOD_RULES[deal.method] : null;
+      if (!rule) return 'The mint has happened.';
+      const parts: string[] = [];
+      if (rule.sellerDeliveryDeadlineHours)
+        parts.push(`seller delivers within ${rule.sellerDeliveryDeadlineHours}h`);
+      if (rule.buyerConfirmWindowHours)
+        parts.push(`buyer confirms within ${rule.buyerConfirmWindowHours}h`);
+      if (rule.buyerSilenceAutoReleaseHours)
+        parts.push(`buyer silence releases after ${rule.buyerSilenceAutoReleaseHours}h`);
+      return `The mint has happened. Release timers started${parts.length ? `: ${parts.join(', ')}` : ''}.`;
+    },
+  },
+
+  release_funds: {
+    id: 'release_funds',
+    label: 'Release funds',
+    description:
+      'Completes the deal. Record the outgoing payments first. This is never automatic and cannot be undone.',
+    from: ['AWAITING_CONFIRMATION'],
+    to: 'COMPLETED',
+    actors: ['MIDDLEMAN'],
+    action: 'FUNDS_RELEASED',
+    destructive: true,
+    guard: ({ deal, recordedProofKinds, now }) => {
+      if (!deal.method) return 'No escrow method is set on this deal.';
+      const at = now ?? new Date();
+
+      // The buyer's confirmation is required UNLESS their silence window has
+      // elapsed. That window does not move money on its own: it only stops
+      // buyer silence from blocking a release the middleman still performs.
+      const silenceElapsed = deal.autoReleaseAt !== null && deal.autoReleaseAt <= at;
+      if (!deal.receiptConfirmedAt && !silenceElapsed) {
+        return deal.autoReleaseAt
+          ? 'Waiting on the buyer to confirm receipt, or on their response window to elapse.'
+          : 'The buyer has not confirmed receipt.';
+      }
+
+      const recorded = recordedProofKinds ?? [];
+      const missing = requiredReleaseProofKinds(
+        deal.method,
+        (deal.collateralAmount ?? 0n) > 0n,
+      ).filter((k) => !recorded.includes(k));
+      if (missing.length > 0) {
+        return `Record the outgoing payment first: ${missing
+          .map((k) => PROOF_KIND_LABEL[k].toLowerCase())
+          .join(' and ')}.`;
+      }
+      return null;
+    },
+    ledgerEntries: ({ deal }) => {
+      const entries: LedgerEntry[] = [];
+      if (deal.mmFee > 0n) {
+        entries.push({
+          action: 'MM_FEE_TAKEN',
+          amount: deal.mmFee,
+          note: 'Middleman fee retained from the buyer payment.',
+        });
+      }
+      if ((deal.collateralAmount ?? 0n) > 0n) {
+        entries.push({
+          action: 'COLLATERAL_RETURNED',
+          amount: deal.collateralAmount,
+          note: 'Seller collateral returned on successful completion.',
+        });
+      }
+      return entries;
+    },
+    systemMessage: ({ deal }) =>
+      `Funds released to the seller${
+        (deal.collateralAmount ?? 0n) > 0n ? ' and collateral returned' : ''
+      }. The middleman fee has been taken. This deal is complete.`,
+  },
+
+  escalate: {
+    id: 'escalate',
+    label: 'Escalate to dispute',
+    description:
+      'Sends this deal to the middleman team for review. Use when the parties cannot agree.',
+    from: ['FUNDED', 'DELIVERING', 'AWAITING_MINT', 'AWAITING_CONFIRMATION'],
+    to: 'DISPUTED',
+    actors: ['BUYER', 'SELLER', 'MIDDLEMAN'],
+    action: 'DEAL_ESCALATED',
+    destructive: true,
+    systemMessage: () =>
+      'This deal was escalated to the middleman team. A main middleman will review it.',
+  },
+
+  refund: {
+    id: 'refund',
+    label: 'Refund the buyer',
+    description:
+      'Closes the dispute by returning funds to the buyer. Record the outgoing payments first. Cannot be undone.',
+    from: ['DISPUTED'],
+    to: 'REFUNDED',
+    // A dispute ruling is the main middleman's call, not the assigned one's.
+    actors: ['ADMIN'],
+    action: 'REFUND_ISSUED',
+    destructive: true,
+    guard: ({ deal, recordedProofKinds }) => {
+      if (!deal.method) return 'No escrow method is set on this deal.';
+      const recorded = recordedProofKinds ?? [];
+      const missing = requiredRefundProofKinds(
+        deal.method,
+        (deal.collateralAmount ?? 0n) > 0n,
+      ).filter((k) => !recorded.includes(k));
+      if (missing.length > 0) {
+        return `Record the outgoing payment first: ${missing
+          .map((k) => PROOF_KIND_LABEL[k].toLowerCase())
+          .join(' and ')}.`;
+      }
+      return null;
+    },
+    ledgerEntries: ({ deal }) => {
+      const entries: LedgerEntry[] = [];
+      const collateral = deal.collateralAmount ?? 0n;
+      if (collateral > 0n && deal.method) {
+        // Destination comes from the method config, never from a branch here.
+        const to = DEAL_METHOD_RULES[deal.method].collateralForfeitsTo;
+        if (to === 'buyer') {
+          entries.push({
+            action: 'COLLATERAL_FORFEITED',
+            amount: collateral,
+            note: 'Collateral forfeited to the buyer as compensation.',
+          });
+        } else if (to === 'seller') {
+          entries.push({
+            action: 'COLLATERAL_RETURNED',
+            amount: collateral,
+            note: 'Collateral returned to the seller.',
+          });
+        }
+      }
+      // The fee is reversed on a refund: the deal did not complete.
+      if (deal.mmFee > 0n) {
+        entries.push({
+          action: 'MM_FEE_REFUNDED',
+          amount: deal.mmFee,
+          note: 'Middleman fee returned to the buyer with the refund.',
+        });
+      }
+      return entries;
+    },
+    systemMessage: ({ deal }) => {
+      const forfeitsTo =
+        deal.method && (deal.collateralAmount ?? 0n) > 0n
+          ? DEAL_METHOD_RULES[deal.method].collateralForfeitsTo
+          : null;
+      if (forfeitsTo === 'buyer') {
+        return 'The buyer was refunded. The collateral was forfeited to the buyer as compensation.';
+      }
+      if (forfeitsTo === 'seller') {
+        return 'The buyer was refunded. The collateral was returned to the seller.';
+      }
+      return 'The buyer was refunded.';
+    },
+  },
+
   cancel: {
     id: 'cancel',
     label: 'Cancel deal',
     description:
       'Closes the deal by mutual agreement. Only possible before any private data has been handed over.',
-    from: ['OPEN', 'CLAIMED', 'TERMS_LOCKED', 'AWAITING_PAYMENT'],
+    // Cancellable right up to the handover: money being held is reversible,
+    // a disclosed secret is not. The guard is what actually closes the window.
+    from: ['OPEN', 'CLAIMED', 'TERMS_LOCKED', 'AWAITING_PAYMENT', 'FUNDED', 'DELIVERING'],
     to: 'CANCELLED',
     actors: ['BUYER', 'SELLER', 'MIDDLEMAN'],
     action: 'DEAL_CANCELLED',
@@ -192,6 +468,11 @@ export function availableTransitions(ctx: TransitionContext): AvailableTransitio
     .filter((rule) => rule.from.includes(ctx.deal.status))
     .filter((rule) => rule.actors.includes(ctx.role) || ctx.role === 'ADMIN')
     .map((rule) => ({ rule, blockedReason: rule.guard?.(ctx) ?? null }));
+}
+
+/** Resolves a rule's target, which may depend on the deal's method. */
+export function resolveTarget(rule: TransitionRule, ctx: TransitionContext): DealStatus {
+  return typeof rule.to === 'function' ? rule.to(ctx) : rule.to;
 }
 
 /** Whole-machine check used by the engine before any write. */

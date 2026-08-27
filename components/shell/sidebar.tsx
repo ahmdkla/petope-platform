@@ -8,6 +8,7 @@ import {
   Handshake,
   Store,
   Gavel,
+  Timer,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,10 +24,23 @@ const PRIMARY: NavItem[] = [
 /** Middleman-only. Shown when the viewer can actually reach it. */
 const MIDDLEMAN: NavItem[] = [{ href: "/queue", label: "Queue", icon: Gavel }];
 
+/** Admin and main-middleman only. */
+const ADMIN: NavItem[] = [{ href: "/admin/timers", label: "Timers", icon: Timer }];
+
 /** Persistent left sidebar — mirrors the Discord model these users know. */
-export function Sidebar({ showQueue = false }: { showQueue?: boolean }) {
+export function Sidebar({
+  showQueue = false,
+  showAdmin = false,
+}: {
+  showQueue?: boolean;
+  showAdmin?: boolean;
+}) {
   const pathname = usePathname();
-  const items = showQueue ? [...PRIMARY, ...MIDDLEMAN] : PRIMARY;
+  const items = [
+    ...PRIMARY,
+    ...(showQueue ? MIDDLEMAN : []),
+    ...(showAdmin ? ADMIN : []),
+  ];
 
   return (
     <nav

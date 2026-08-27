@@ -6,6 +6,83 @@ until this file is updated.
 
 ---
 
+## Funding auto-advances; release never does
+
+**Date:** 2026-08-27
+
+These look like the same kind of step. They are not, and the asymmetry is
+deliberate.
+
+**Funding auto-advances.** When the last required `PaymentProof` is confirmed,
+the deal moves to `FUNDED` without anyone pressing another button. That is not
+an auto-advance *from a submission* — it is the consequence of two explicit
+human decisions that already happened. The middleman opened each Solscan link,
+checked it personally, and confirmed. Requiring a third click to acknowledge
+their own two confirmations would be ceremony, not a control. A `SUBMITTED`
+proof still advances nothing: the funding guard reads confirmed proofs only.
+
+**Release never auto-advances.** `release_funds` is always an explicit action by
+the middleman, is marked destructive, and is confirmed in a dialog. The reason
+is simple: confirming a payment records something that already happened, while
+releasing funds causes something to happen. CLAUDE.md's rule — *"Fund release
+and refund require an explicit confirmation step, no single-click irreversible
+money movement"* — applies to the second, not the first.
+
+### What the 24-hour "auto-release" actually means
+
+CLAUDE.md says funds auto-release to the seller after 24 hours of buyer
+silence. That does **not** mean the platform moves money — the platform never
+moves money at all. It means the buyer's confirmation stops being *required*.
+
+Concretely, `release_funds` needs either `receiptConfirmedAt` or an elapsed
+`autoReleaseAt`. Once the window passes, buyer silence no longer blocks the
+release; a middleman still has to send the funds off-platform, record an
+`MM_RELEASE` proof, and press the button. Timers change what is permitted, never
+what is executed.
+
+`sellerDeliveryDeadline` elapsing is the one timer that changes state on its
+own — it escalates to `DISPUTED`, because the method says the deal has failed.
+That moves no money either; it routes the deal to a human ruling.
+
+---
+
+## Release deadlines are stored, not derived
+
+**Date:** 2026-08-27
+
+`sellerDeliveryDeadline`, `buyerConfirmDeadline` and `autoReleaseAt` are
+resolved from the method config **once**, when the timer starts, and written as
+absolute timestamps. Two reasons:
+
+- An admin retuning a method's window must not retroactively move a deadline on
+  a deal already running.
+- A scheduled job can index-scan for due work rather than walking every deal and
+  recomputing.
+
+The seller's delivery window is measured from `mintAt`, not from now — it starts
+when the mint happens. The other two run from the moment the deal enters
+`AWAITING_CONFIRMATION`.
+
+---
+
+## `MM_RELEASE` is evidence, not a verified proof
+
+**Date:** 2026-08-27
+
+`BUYER_PAYMENT` and `SELLER_COLLATERAL` are verified by a third party: the
+middleman checks them. The middleman's own outgoing records — `MM_RELEASE`,
+`MM_REFUND`, `MM_COLLATERAL_RETURN` — cannot be, because
+`payment_proof_no_self_verification` forbids anyone verifying their own
+submission and nobody else is positioned to check them.
+
+They are therefore required to **exist** before release or refund, not to be
+confirmed. That is exactly what the Discord workflow produces today: the
+middleman pastes the payout transaction as their record. The audit trail keeps
+it; no automated check exists to validate it, and inventing one would be a
+change to the business process rather than a port of it.
+
+---
+
 ## Better Auth over Auth.js (NextAuth), email/password
 
 **Date:** 2026-08-27 · **Migrations:** `20260826175659_switch_to_better_auth`,

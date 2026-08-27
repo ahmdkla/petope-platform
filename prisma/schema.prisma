@@ -551,12 +551,25 @@ model Deal {
   /// remaining time is recomputed when timers resume.
   timersPausedAt         DateTime?
 
+  /// Each party independently acknowledges that the off-platform handover
+  /// happened. Both are required before delivery can progress.
+  handoverDeclaredByBuyerAt  DateTime?
+  handoverDeclaredBySellerAt DateTime?
+
   /// Set when a private key or Discord credential handover is DECLARED to have
   /// happened off-platform. The platform never sees the secret itself — only
   /// that both parties acknowledged the handover, and when.
   /// Once this is set the deal can no longer be CANCELLED by mutual agreement;
   /// only dispute resolution applies.
+  ///
+  /// Only set for methods whose handover IS private data (private key, Discord
+  /// account). An NFT transfer is a delivery, not a secret, so it does not
+  /// close the cancellation window.
   privateDataHandedOverAt DateTime?
+
+  /// The buyer confirming they received what they paid for. Release normally
+  /// requires this; once autoReleaseAt passes, buyer silence stops blocking it.
+  receiptConfirmedAt DateTime?
 
   // --- dispute escalation (ticket-problem) ---
   escalatedById    String?

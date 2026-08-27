@@ -266,3 +266,91 @@ export function buyerTotal(
   if (rule.buyerPays.includes('mint_price')) total += amounts.mintPrice ?? 0n;
   return total;
 }
+
+/**
+ * Whether this method's off-platform handover is PRIVATE DATA.
+ *
+ * Only a private key or Discord credentials close the cancellation window: once
+ * a secret has left the seller's hands it cannot be un-shared. An NFT transfer
+ * is a delivery — reversible in principle, and not a secret — so it does not.
+ */
+export function isPrivateDataHandover(method: DealMethod): boolean {
+  const h = DEAL_METHOD_RULES[method].offPlatformHandover;
+  return h === 'private_key' || h === 'discord_account';
+}
+
+/**
+ * Proofs the middleman must record before a deal can complete.
+ *
+ * MM_RELEASE is the middleman's own record of paying the seller out. Unlike
+ * BUYER_PAYMENT and SELLER_COLLATERAL it is NOT third-party verified — the
+ * no-self-verification rule means the middleman cannot confirm their own
+ * submission, and nobody else is positioned to. It exists as evidence in the
+ * audit trail, which is exactly what the Discord workflow produces today.
+ */
+export function requiredReleaseProofKinds(
+  method: DealMethod,
+  hasCollateral: boolean,
+): ProofKind[] {
+  const kinds: ProofKind[] = ['MM_RELEASE'];
+  if (DEAL_METHOD_RULES[method].requiresCollateral && hasCollateral) {
+    kinds.push('MM_COLLATERAL_RETURN');
+  }
+  return kinds;
+}
+
+/** Proofs required on the refund path. Collateral destination is config-driven. */
+export function requiredRefundProofKinds(
+  method: DealMethod,
+  hasCollateral: boolean,
+): ProofKind[] {
+  const kinds: ProofKind[] = ['MM_REFUND'];
+  // When collateral forfeits to the buyer it is part of the refund, not a
+  // separate return to the seller.
+  if (
+    hasCollateral &&
+    DEAL_METHOD_RULES[method].collateralForfeitsTo === 'seller'
+  ) {
+    kinds.push('MM_COLLATERAL_RETURN');
+  }
+  return kinds;
+}
+
+export type ResolvedTimers = {
+  sellerDeliveryDeadline: Date | null;
+  buyerConfirmDeadline: Date | null;
+  autoReleaseAt: Date | null;
+};
+
+/**
+ * Resolve the method's timer windows into ABSOLUTE deadlines, once, at the
+ * moment the timers start.
+ *
+ * They are stored rather than recomputed so that an admin retuning a window
+ * cannot retroactively move a deadline on a deal already running, and so a
+ * scheduled job can index-scan for due work. See docs/DECISIONS.md.
+ */
+export function resolveTimers(
+  method: DealMethod,
+  opts: { now: Date; mintAt: Date | null },
+): ResolvedTimers {
+  const rule = DEAL_METHOD_RULES[method];
+  const hours = (n: number, from: Date) => new Date(from.getTime() + n * 3_600_000);
+
+  return {
+    // Measured from the mint event, not from now: the seller's window to hand
+    // over the NFT starts when the mint happens.
+    sellerDeliveryDeadline:
+      rule.sellerDeliveryDeadlineHours !== null && opts.mintAt
+        ? hours(rule.sellerDeliveryDeadlineHours, opts.mintAt)
+        : null,
+    buyerConfirmDeadline:
+      rule.buyerConfirmWindowHours !== null
+        ? hours(rule.buyerConfirmWindowHours, opts.now)
+        : null,
+    autoReleaseAt:
+      rule.buyerSilenceAutoReleaseHours !== null
+        ? hours(rule.buyerSilenceAutoReleaseHours, opts.now)
+        : null,
+  };
+}

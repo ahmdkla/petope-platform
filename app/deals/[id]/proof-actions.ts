@@ -37,7 +37,14 @@ const referenceSchema = isDemo
       );
 
 const submitSchema = z.object({
-  kind: z.enum(["BUYER_PAYMENT", "SELLER_COLLATERAL"]),
+  kind: z.enum([
+    "BUYER_PAYMENT",
+    "SELLER_COLLATERAL",
+    // The middleman's own outgoing records, submitted on release or refund.
+    "MM_RELEASE",
+    "MM_REFUND",
+    "MM_COLLATERAL_RETURN",
+  ]),
   reference: referenceSchema,
   claimedAmount: z.bigint().positive().nullable(),
   screenshotUrl: z.string().trim().url().nullable(),
@@ -56,8 +63,21 @@ export async function submitProof(
   const access = await assertDealParticipant(deal, user, { audit: false });
   if (!access.allowed) return { ok: false, error: "You are not a party to this deal." };
 
-  if (deal.status !== "AWAITING_PAYMENT") {
-    return { ok: false, error: "Proofs can only be submitted while the deal is awaiting payment." };
+  const incoming = ["BUYER_PAYMENT", "SELLER_COLLATERAL"];
+  const kindFromInput = (input as { kind?: string } | null)?.kind ?? "";
+
+  if (incoming.includes(kindFromInput)) {
+    if (deal.status !== "AWAITING_PAYMENT") {
+      return {
+        ok: false,
+        error: "Payments can only be submitted while the deal is awaiting payment.",
+      };
+    }
+  } else if (!["AWAITING_CONFIRMATION", "DISPUTED"].includes(deal.status)) {
+    return {
+      ok: false,
+      error: "Outgoing payments are recorded when releasing funds or resolving a dispute.",
+    };
   }
 
   const parsed = submitSchema.safeParse(input);

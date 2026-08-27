@@ -14,11 +14,17 @@ import { ActionPanel } from "./action-panel";
 import { MethodConfirmation } from "./method-confirmation";
 import { ProofPanel, type ProofView, type RequiredProof } from "./proof-panel";
 import {
+  DEAL_METHOD_RULES,
   PROOF_KIND_LABEL,
   PROOF_SUBMITTER,
   buyerTotal,
+  isPrivateDataHandover,
   requiredProofKinds,
+  requiredReleaseProofKinds,
+  requiredRefundProofKinds,
 } from "@/lib/deal-methods";
+import { DeliveryPanel } from "./delivery-panel";
+import { TimersCard, type TimerView } from "./timers-card";
 import { formatMoney } from "@/lib/money";
 
 export const metadata: Metadata = { title: "Deal room — EXSAVERSE" };
@@ -91,9 +97,22 @@ export default async function DealRoomPage({
     verifierNote: p.verifierNote,
   }));
 
-  // Which proofs this method requires comes from the method config.
+  const hasCollateral = (deal.collateralAmount ?? 0n) > 0n;
+
+  // Which proofs matter depends on the phase, and comes from the method config.
+  const activeKinds = !deal.method
+    ? []
+    : deal.status === "DISPUTED"
+      ? requiredRefundProofKinds(deal.method, hasCollateral)
+      : ["AWAITING_CONFIRMATION", "COMPLETED"].includes(deal.status)
+        ? [
+            ...requiredProofKinds(deal.method),
+            ...requiredReleaseProofKinds(deal.method, hasCollateral),
+          ]
+        : requiredProofKinds(deal.method);
+
   const required: RequiredProof[] = deal.method
-    ? requiredProofKinds(deal.method).map((kind) => ({
+    ? activeKinds.map((kind) => ({
         kind,
         label: PROOF_KIND_LABEL[kind],
         submitter: PROOF_SUBMITTER[kind],
@@ -107,11 +126,54 @@ export default async function DealRoomPage({
                 }),
                 deal.asset,
               )
-            : deal.collateralAmount
+            : kind === "SELLER_COLLATERAL" || kind === "MM_COLLATERAL_RETURN"
+            ? deal.collateralAmount
               ? formatMoney(deal.collateralAmount, deal.asset)
-              : null,
+              : null
+            : kind === "MM_RELEASE"
+              ? formatMoney(deal.dealAmount, deal.asset)
+              : kind === "MM_REFUND"
+                ? formatMoney(
+                    buyerTotal(deal.method!, {
+                      dealAmount: deal.dealAmount,
+                      mmFee: deal.mmFee,
+                      mintPrice: deal.mintPrice,
+                    }),
+                    deal.asset,
+                  )
+                : null,
       }))
     : [];
+
+  // Absolute deadlines, resolved server-side when the timer started.
+  const timers: TimerView[] = [];
+  if (deal.status === "AWAITING_CONFIRMATION" && deal.method) {
+    const rule = DEAL_METHOD_RULES[deal.method];
+    if (deal.sellerDeliveryDeadline) {
+      timers.push({
+        key: "seller",
+        label: "Seller delivery deadline",
+        deadlineIso: deal.sellerDeliveryDeadline.toISOString(),
+        consequence: `If the seller has not delivered by then, the deal fails and the buyer is owed all funds. Window: ${rule.sellerDeliveryDeadlineHours}h after mint.`,
+      });
+    }
+    if (deal.buyerConfirmDeadline) {
+      timers.push({
+        key: "buyerConfirm",
+        label: "Buyer confirmation window",
+        deadlineIso: deal.buyerConfirmDeadline.toISOString(),
+        consequence: `The buyer has ${rule.buyerConfirmWindowHours}h to confirm receipt. After that the middleman may proceed without them.`,
+      });
+    }
+    if (deal.autoReleaseAt) {
+      timers.push({
+        key: "autoRelease",
+        label: "Buyer response window",
+        deadlineIso: deal.autoReleaseAt.toISOString(),
+        consequence: `After ${rule.buyerSilenceAutoReleaseHours}h of silence the buyer's confirmation is no longer required. The middleman still performs the release manually.`,
+      });
+    }
+  }
 
   const messages = await db.dealMessage.findMany({
     where: { dealId: id },
@@ -147,10 +209,23 @@ export default async function DealRoomPage({
             <MethodConfirmation deal={deal} role={role} />
           ) : null}
 
+          <DeliveryPanel
+            deal={deal}
+            role={role}
+            privateData={deal.method ? isPrivateDataHandover(deal.method) : false}
+          />
+
           {required.length > 0 &&
-          ["AWAITING_PAYMENT", "FUNDED", "DELIVERING", "AWAITING_MINT", "AWAITING_CONFIRMATION", "COMPLETED", "DISPUTED", "REFUNDED"].includes(
-            deal.status,
-          ) ? (
+          [
+            "AWAITING_PAYMENT",
+            "FUNDED",
+            "DELIVERING",
+            "AWAITING_MINT",
+            "AWAITING_CONFIRMATION",
+            "COMPLETED",
+            "DISPUTED",
+            "REFUNDED",
+          ].includes(deal.status) ? (
             <ProofPanel
               dealId={deal.id}
               role={role}
@@ -158,7 +233,9 @@ export default async function DealRoomPage({
               proofs={proofs}
               required={required}
               currentUserId={user.id}
-              open={deal.status === "AWAITING_PAYMENT"}
+              open={["AWAITING_PAYMENT", "AWAITING_CONFIRMATION", "DISPUTED"].includes(
+                deal.status,
+              )}
             />
           ) : null}
 
@@ -172,6 +249,7 @@ export default async function DealRoomPage({
 
         <aside className="space-y-6">
           <ActionPanel dealId={deal.id} items={actions} role={role} />
+          <TimersCard timers={timers} paused={Boolean(deal.timersPausedAt)} />
           <StatusTimeline deal={deal} />
           <Participants deal={deal} viewerRole={role} />
         </aside>

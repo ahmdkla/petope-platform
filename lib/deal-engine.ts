@@ -4,6 +4,7 @@ import { assertDealParticipant } from './deal-access';
 import type { CurrentUser } from './session';
 import {
   checkTransition,
+  resolveTarget,
   STATUS_TIMESTAMP,
   type ActorRole,
   type TransitionId,
@@ -38,34 +39,39 @@ export async function applyTransition(
 
   const role: ActorRole = access.role;
 
-  // Only CONFIRMED proofs are loaded. A SUBMITTED proof must be invisible to
-  // the guards — submission advances nothing.
-  const confirmedProofKinds = await loadConfirmedProofKinds(dealId);
+  const now = new Date();
+  // Only CONFIRMED proofs count toward funding — a SUBMITTED proof must be
+  // invisible to that guard. `recorded` additionally covers the middleman's own
+  // outgoing-payment records, which cannot be third-party confirmed.
+  const { confirmedProofKinds, recordedProofKinds } = await loadProofKinds(dealId);
+  const baseCtx = { role, confirmedProofKinds, recordedProofKinds, now };
 
-  const check = checkTransition(transitionId, { deal, role, confirmedProofKinds });
+  const check = checkTransition(transitionId, { deal, ...baseCtx });
   if (!check.ok) return { ok: false, error: check.error };
   const { rule } = check;
 
-  const timestampField = STATUS_TIMESTAMP[rule.to];
+  const target = resolveTarget(rule, { deal, ...baseCtx });
+  const timestampField = STATUS_TIMESTAMP[target];
 
   let updated: Deal;
   try {
     updated = await db.$transaction(async (tx) => {
     // Re-read inside the transaction so two concurrent claims cannot both win.
     const fresh = await tx.deal.findUniqueOrThrow({ where: { id: dealId } });
-    const recheck = checkTransition(transitionId, {
-      deal: fresh,
-      role,
-      confirmedProofKinds,
-    });
+    const recheck = checkTransition(transitionId, { deal: fresh, ...baseCtx });
     if (!recheck.ok) throw new TransitionConflict(recheck.error);
+
+    // Extra columns the target state stamps on arrival (timer deadlines,
+    // handover marks). Config-driven, never hardcoded here.
+    const entered = rule.onEnter?.({ deal: fresh, ...baseCtx }) ?? {};
 
     const next = await tx.deal.update({
       where: { id: dealId },
       data: {
-        status: rule.to,
-        ...(timestampField ? { [timestampField]: new Date() } : {}),
+        status: target,
+        ...(timestampField ? { [timestampField]: now } : {}),
         ...(transitionId === 'claim' ? { middlemanId: user.id } : {}),
+        ...entered,
       },
     });
 
@@ -75,7 +81,7 @@ export async function applyTransition(
         actorId: user.id,
         action: rule.action,
         fromStatus: fresh.status,
-        toStatus: rule.to,
+        toStatus: target,
         metadata: {
           transition: rule.id,
           role,
@@ -84,12 +90,28 @@ export async function applyTransition(
       },
     });
 
+    // One immutable row per fund movement, beside the transition row itself.
+    for (const entry of rule.ledgerEntries?.({ deal: next, ...baseCtx }) ?? []) {
+      await tx.transactionLog.create({
+        data: {
+          dealId,
+          actorId: user.id,
+          action: entry.action,
+          amount: entry.amount ?? null,
+          asset: entry.amount ? next.asset : null,
+          fromStatus: fresh.status,
+          toStatus: target,
+          metadata: { transition: rule.id, note: entry.note },
+        },
+      });
+    }
+
     await tx.dealMessage.create({
       data: {
         dealId,
         authorId: null, // system bot
         kind: 'SYSTEM',
-        body: rule.systemMessage({ deal: next, role, confirmedProofKinds }),
+        body: rule.systemMessage({ deal: next, ...baseCtx }),
       },
     });
 
@@ -107,14 +129,23 @@ export async function applyTransition(
 
 class TransitionConflict extends Error {}
 
-/** Distinct kinds with at least one CONFIRMED proof on this deal. */
-export async function loadConfirmedProofKinds(dealId: string): Promise<ProofKind[]> {
+/**
+ * Proof kinds on this deal, split by how much weight a guard may give them.
+ * `confirmed` is CONFIRMED only. `recorded` is anything not rejected.
+ */
+export async function loadProofKinds(
+  dealId: string,
+): Promise<{ confirmedProofKinds: ProofKind[]; recordedProofKinds: ProofKind[] }> {
   const rows = await db.paymentProof.findMany({
-    where: { dealId, status: 'CONFIRMED' },
-    select: { kind: true },
-    distinct: ['kind'],
+    where: { dealId, status: { in: ['SUBMITTED', 'CONFIRMED'] } },
+    select: { kind: true, status: true },
   });
-  return rows.map((r) => r.kind);
+  return {
+    confirmedProofKinds: [
+      ...new Set(rows.filter((r) => r.status === 'CONFIRMED').map((r) => r.kind)),
+    ],
+    recordedProofKinds: [...new Set(rows.map((r) => r.kind))],
+  };
 }
 
 /**
@@ -159,6 +190,119 @@ export async function confirmMethod(
         body: `${access.role === 'BUYER' ? 'The buyer' : 'The seller'} ${
           confirmed ? 'confirmed' : 'withdrew confirmation of'
         } the escrow method.`,
+      },
+    });
+
+    return next;
+  });
+
+  return { ok: true, deal: updated };
+}
+
+/**
+ * Records a party's acknowledgement that the off-platform handover happened.
+ *
+ * Like method confirmation, this is not a status transition — it is the gate
+ * that complete_handover checks. The platform never sees what changed hands;
+ * it records only that both parties said it did, and when.
+ */
+export async function declareHandover(
+  dealId: string,
+  user: CurrentUser,
+  declared: boolean,
+): Promise<EngineResult> {
+  const deal = await db.deal.findUnique({ where: { id: dealId } });
+  if (!deal) return { ok: false, error: 'Deal not found.' };
+
+  const access = await assertDealParticipant(deal, user, { audit: false });
+  if (!access.allowed) return { ok: false, error: 'You are not a party to this deal.' };
+  if (access.role !== 'BUYER' && access.role !== 'SELLER') {
+    return { ok: false, error: 'Only the buyer and the seller acknowledge the handover.' };
+  }
+  if (deal.status !== 'DELIVERING') {
+    return { ok: false, error: 'The handover can only be acknowledged during delivery.' };
+  }
+  // Withdrawing after the window has closed would misrepresent the record.
+  if (!declared && deal.privateDataHandedOverAt) {
+    return {
+      ok: false,
+      error: 'Private data has already changed hands. This acknowledgement cannot be withdrawn.',
+    };
+  }
+
+  const field =
+    access.role === 'BUYER' ? 'handoverDeclaredByBuyerAt' : 'handoverDeclaredBySellerAt';
+
+  const updated = await db.$transaction(async (tx) => {
+    const next = await tx.deal.update({
+      where: { id: dealId },
+      data: { [field]: declared ? new Date() : null },
+    });
+
+    await tx.dealMessage.create({
+      data: {
+        dealId,
+        authorId: null,
+        kind: 'SYSTEM',
+        body: `${access.role === 'BUYER' ? 'The buyer' : 'The seller'} ${
+          declared ? 'acknowledged' : 'withdrew their acknowledgement of'
+        } the off-platform handover.`,
+      },
+    });
+
+    return next;
+  });
+
+  return { ok: true, deal: updated };
+}
+
+/**
+ * The buyer confirming they received what they paid for. Unblocks release.
+ * Never inferred from silence — silence is handled by the autoReleaseAt window,
+ * which is a separate condition the release guard checks.
+ */
+export async function confirmReceipt(
+  dealId: string,
+  user: CurrentUser,
+): Promise<EngineResult> {
+  const deal = await db.deal.findUnique({ where: { id: dealId } });
+  if (!deal) return { ok: false, error: 'Deal not found.' };
+
+  const access = await assertDealParticipant(deal, user, { audit: false });
+  if (!access.allowed) return { ok: false, error: 'You are not a party to this deal.' };
+  if (access.role !== 'BUYER') {
+    return { ok: false, error: 'Only the buyer confirms receipt.' };
+  }
+  if (deal.status !== 'AWAITING_CONFIRMATION') {
+    return { ok: false, error: 'There is nothing to confirm receipt of yet.' };
+  }
+  if (deal.receiptConfirmedAt) {
+    return { ok: false, error: 'You have already confirmed receipt.' };
+  }
+
+  const updated = await db.$transaction(async (tx) => {
+    const next = await tx.deal.update({
+      where: { id: dealId },
+      data: { receiptConfirmedAt: new Date() },
+    });
+
+    await tx.transactionLog.create({
+      data: {
+        dealId,
+        actorId: user.id,
+        action: 'RECEIPT_CONFIRMED',
+        fromStatus: deal.status,
+        toStatus: deal.status,
+        metadata: { role: 'BUYER' },
+      },
+    });
+
+    await tx.dealMessage.create({
+      data: {
+        dealId,
+        authorId: null,
+        kind: 'SYSTEM',
+        body: 'The buyer confirmed receipt. The middleman can now release funds.',
       },
     });
 

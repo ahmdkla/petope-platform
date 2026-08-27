@@ -10,7 +10,10 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-full flex-1">
-      <Sidebar showQueue={user ? isMiddleman(user.role) : false} />
+      <Sidebar
+        showQueue={user ? isMiddleman(user.role) : false}
+        showAdmin={user?.role === "ADMIN" || user?.role === "MAIN_MIDDLEMAN"}
+      />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-16 shrink-0 items-center justify-end gap-3 border-b border-line bg-card px-6">
