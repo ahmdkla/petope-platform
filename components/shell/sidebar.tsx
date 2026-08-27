@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutGrid, ShieldCheck, Handshake, Store, type LucideIcon } from "lucide-react";
+import {
+  LayoutGrid,
+  ShieldCheck,
+  Handshake,
+  Store,
+  Gavel,
+  type LucideIcon,
+} from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: LucideIcon; exact?: boolean };
 
@@ -13,9 +20,13 @@ const PRIMARY: NavItem[] = [
   { href: "/middlemen", label: "Middlemen", icon: ShieldCheck },
 ];
 
+/** Middleman-only. Shown when the viewer can actually reach it. */
+const MIDDLEMAN: NavItem[] = [{ href: "/queue", label: "Queue", icon: Gavel }];
+
 /** Persistent left sidebar — mirrors the Discord model these users know. */
-export function Sidebar() {
+export function Sidebar({ showQueue = false }: { showQueue?: boolean }) {
   const pathname = usePathname();
+  const items = showQueue ? [...PRIMARY, ...MIDDLEMAN] : PRIMARY;
 
   return (
     <nav
@@ -35,7 +46,7 @@ export function Sidebar() {
       </Link>
 
       <ul className="flex-1 space-y-1 overflow-y-auto p-3">
-        {PRIMARY.map(({ href, label, icon: Icon, exact }) => {
+        {items.map(({ href, label, icon: Icon, exact }) => {
           const active = exact
             ? pathname === href
             : pathname === href || pathname.startsWith(`${href}/`);

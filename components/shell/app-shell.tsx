@@ -3,14 +3,14 @@ import { Sidebar } from "./sidebar";
 import { UserMenu } from "./user-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { DemoBanner } from "@/components/demo-banner";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, isMiddleman } from "@/lib/session";
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
 
   return (
     <div className="flex min-h-full flex-1">
-      <Sidebar />
+      <Sidebar showQueue={user ? isMiddleman(user.role) : false} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-16 shrink-0 items-center justify-end gap-3 border-b border-line bg-card px-6">
