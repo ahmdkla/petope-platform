@@ -185,12 +185,23 @@ enum MessageKind {
 // ---------------------------------------------------------------------------
 
 model User {
-  id              String  @id @default(cuid())
-  /// Discord OAuth is the primary (and only) sign-in. No wallet sign-in.
-  discordId       String  @unique
-  discordUsername String
-  displayName     String?
-  avatarUrl       String?
+  id String @id @default(cuid())
+
+  // --- identity (Better Auth core fields) ---
+  /// Sign-in is email/password via Better Auth. No wallet sign-in, ever.
+  /// The password hash lives on Account.password, never here.
+  email         String  @unique
+  emailVerified Boolean @default(false)
+  /// Better Auth's `name` and `image` are mapped onto these two existing
+  /// columns via the adapter's field mapping, rather than duplicating them.
+  displayName   String?
+  avatarUrl     String?
+
+  /// Optional: Discord OAuth is deferred, not abandoned. When a user links a
+  /// Discord account later these fill in. Nullable so email/password signup
+  /// works at all — they were required while Discord was the only provider.
+  discordId       String? @unique
+  discordUsername String?
 
   role   UserRole   @default(USER)
   status UserStatus @default(ACTIVE)
@@ -268,47 +279,94 @@ model UserWallet {
   @@index([address])
 }
 
-// --- NextAuth (Discord OAuth) -----------------------------------------------
-// These three carry onDelete: Cascade rather than Restrict. Deliberate
-// exception: session/token rows are transient auth state, not audit data.
+// --- Better Auth (email/password) --------------------------------------------
+// Shapes are dictated by Better Auth's core schema — field names must match or
+// be mapped in lib/auth.ts. These four carry onDelete: Cascade rather than
+// Restrict. Deliberate exception: auth rows are transient state, not audit
+// data. Every deal-related relation still uses Restrict.
 
+/// Credential and linked-provider records. One row per auth method per user.
 model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
+  id     String @id @default(cuid())
+  userId String
+
+  /// Provider's id for this account. For email/password this is the user id.
+  accountId  String
+  /// "credential" for email/password; "discord" once OAuth is enabled.
+  providerId String
+  /// Better Auth 1.7 records the issuing authority, e.g. "local:credential".
+  issuer     String?
+
+  /// The scrypt password hash for credential accounts. NEVER log this column,
+  /// never return it from an API, never put it in a TransactionLog.
+  password String?
+
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([provider, providerAccountId])
+  @@unique([providerId, accountId])
   @@index([userId])
 }
 
+/// Database-backed sessions. This is why Better Auth was chosen over Auth.js:
+/// a blacklisted user's session can be revoked immediately by deleting the row,
+/// which a JWT-only credentials flow cannot do.
 model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
+  id     String @id @default(cuid())
+  userId String
+
+  token     String   @unique
+  expiresAt DateTime
+
+  /// Raw values, deliberately — Better Auth surfaces them in session
+  /// management so a user can recognise their own devices. They expire with
+  /// the session. The long-lived alt-account signals stay hashed on User
+  /// (lastSeenIpHash / lastSeenDeviceId). See docs/DECISIONS.md.
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([expiresAt])
 }
 
-model VerificationToken {
+/// Email-verification and password-reset tokens.
+model Verification {
+  id         String   @id @default(cuid())
   identifier String
-  token      String   @unique
-  expires    DateTime
+  value      String
+  expiresAt  DateTime
 
-  @@unique([identifier, token])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([identifier])
+  @@index([expiresAt])
+}
+
+/// Better Auth's rate-limit counters. Stored in the database rather than the
+/// default in-memory store, which would silently do nothing across Vercel's
+/// serverless instances — each cold start would get a fresh empty counter.
+model RateLimit {
+  id          String @id @default(cuid())
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+
+  @@index([key])
 }
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,10 @@
 // Throwaway verification: proves each database-level constraint actually fires.
 // Run: node scripts/verify-constraints.mjs
+//
+// NOTE: this necessarily leaves undeletable vt_* rows behind — the ledger
+// trigger blocks deleting the TransactionLog rows, and onDelete: Restrict
+// propagates that up through Deal to User. Follow it with `prisma migrate
+// reset` to get back to a clean, seeded database.
 import 'dotenv/config';
 import pg from 'pg';
 
@@ -28,11 +33,11 @@ const run = async (label, sql, params = []) => {
 // --- seed the minimum rows the tests need ---------------------------------
 console.log('### seeding fixtures');
 await c.query(`
-  INSERT INTO "User" (id, "discordId", "discordUsername", role, status, "createdAt", "updatedAt")
+  INSERT INTO "User" (id, email, "displayName", role, status, "createdAt", "updatedAt")
   VALUES
-    ('vt_buyer','vt_d_buyer','vt_buyer','USER','ACTIVE',now(),now()),
-    ('vt_seller','vt_d_seller','vt_seller','USER','ACTIVE',now(),now()),
-    ('vt_mm','vt_d_mm','vt_mm','MIDDLEMAN','ACTIVE',now(),now())
+    ('vt_buyer','vt_buyer@invalid.test','vt_buyer','USER','ACTIVE',now(),now()),
+    ('vt_seller','vt_seller@invalid.test','vt_seller','USER','ACTIVE',now(),now()),
+    ('vt_mm','vt_mm@invalid.test','vt_mm','MIDDLEMAN','ACTIVE',now(),now())
   ON CONFLICT (id) DO NOTHING;
 `);
 await c.query(`

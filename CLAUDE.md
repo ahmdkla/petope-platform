@@ -14,7 +14,8 @@ the workflow that already works, not reinvent it.**
 - `docs/deal-methods.md` — the 7 deal types and their exact money flows.
   **Read this before touching any escrow, payment, or deal-state code.**
 - `docs/features.md` — full feature map derived from the Discord server
-- `docs/DECISIONS.md` — running log of settled architectural decisions
+- `docs/DECISIONS.md` — running log of settled architectural decisions, and the
+  database constraints currently applied
 - `docs/screenshots/` — screenshots of the live Discord workflow
 
 ## Domain Vocabulary (use these exact terms in code and UI)
@@ -148,7 +149,9 @@ and an audit log entry.
 3. `terms_locked` — both parties agreed to the terms
 4. `awaiting_payment` — buyer must send deal amount + MM fee (+ mint price on
    some methods); seller must send collateral. Mirrors PENDING PAYMENT.
-5. `funded` — MM has verified both payments on-chain
+5. `funded` — the assigned MM has **manually confirmed** both `PaymentProof`
+   rows (buyer payment and seller collateral) by opening each Solscan link
+   and checking it personally. Nothing on-chain is read by the platform.
 6. `delivering` — credentials/wallet/NFT being handed over per the deal method
 7. `awaiting_mint` — deal is waiting on the project's mint event. **Many deals
    sit here for days or weeks. This is normal and must be supported.**
@@ -186,22 +189,74 @@ Make these values configurable per deal method, not hardcoded in logic.
 Permissions are per-deal, not global. Every deal-scoped query goes through one
 shared `assertDealParticipant()` helper — never hand-roll the check.
 
-## Suggested Tech Stack
-- **Framework:** Next.js (App Router) + TypeScript
-- **Styling:** Tailwind + shadcn/ui
-- **DB:** PostgreSQL + Prisma
-- **Auth:** NextAuth with **Discord OAuth primary** (existing user base already
-  has Discord accounts — lowest-friction migration). **No wallet sign-in.**
-- **Realtime:** Pusher or Ably (deal room chat, listing feed, notifications)
-- **Payments:** none. No SDK, no RPC, no wallet library. Payment proofs are
-  text references confirmed by a human middleman — see the manual verification
-  section below.
-- **Jobs/timers:** Inngest or a queue with durable scheduling (24h/6h/2h
-  release timers must survive deploys)
-- **Serialization:** `superjson` — BigInt money fields will not survive
-  `JSON.stringify` without it
-- **Uploads:** UploadThing or Cloudflare R2 (proof screenshots)
-- **Hosting:** Vercel + managed Postgres (Neon/Supabase/Railway)
+## Tech Stack (in use)
+
+### Installed and working
+- **Framework:** Next.js 16.3.3 (App Router) + TypeScript 5
+- **Styling:** Tailwind CSS v4
+- **DB:** PostgreSQL (Neon) + **Prisma 7.10**
+  - Prisma 7 removed `url` from the schema's `datasource` block. The connection
+    string lives in **`prisma.config.ts`**, which loads `.env` via
+    `dotenv/config`. `prisma/schema.prisma` declares only the provider.
+  - Prisma 7 requires a **driver adapter** to construct `PrismaClient` — bare
+    `new PrismaClient()` will not connect. Add `@prisma/adapter-pg` before
+    writing the first query.
+  - Two migrations are applied: `20260826172349_init` and
+    `20260826172419_enforce_ledger_immutability`.
+- **Validation:** Zod 4.4 — server-side, every route
+- **Env loading:** `dotenv`
+- **Payments:** none, and none planned. No SDK, no RPC, no wallet library.
+  Payment proofs are text references confirmed by a human middleman — see the
+  manual verification section below.
+- **Hosting:** Vercel + Neon Postgres
+- *(dev only)* `pg`, used by `scripts/verify-constraints.mjs` to prove the
+  database constraints fire
+
+### Auth — Better Auth, email/password
+**Installed and wired up.** `better-auth` 1.7, email/password only.
+
+Chosen over Auth.js (NextAuth) for one reason above all: **Auth.js's Credentials
+provider is JWT-only and cannot do database sessions**, so a `BLACKLISTED` user
+would keep a working session until their token expired. Sessions here live in
+the database and are revoked on the next request. Full reasoning in
+`docs/DECISIONS.md`.
+
+- `lib/auth.ts` — server config. `lib/auth-client.ts` — React client.
+- `app/api/auth/[...all]/route.ts` — the handler mount.
+- `proxy.ts` — Next 16 replaces `middleware.ts` with `proxy.ts`, which always
+  runs on the Node runtime. It validates the session **against the database**
+  and rejects `BLACKLISTED` / `SUSPENDED` accounts. Never downgrade this to
+  Better Auth's `getSessionCookie()`, which its own docs mark as not secure.
+- Rate limiting is on, stored in the database (`RateLimit`): 5 sign-ins/min,
+  3 sign-ups/hour. The in-memory default would silently not apply on Vercel.
+- Password hashes are scrypt and live on **`Account.password`**, never on `User`.
+
+**Discord OAuth is deferred, not abandoned** — this is a university project
+with no real users, so the OAuth app registration is not worth the friction
+yet. Add `socialProviders.discord` and the existing `User.discordId` /
+`discordUsername` columns (now nullable) fill in.
+
+**No wallet sign-in**, under any auth scheme.
+
+⚠️ **Email delivery is not wired up.** `sendVerificationEmail` and
+`sendResetPassword` log to the console under `DEMO_MODE`, and
+`requireEmailVerification` is off. Do not present password reset as working.
+
+### Not yet installed — choose when the feature is actually built
+- **Realtime:** *(not installed)* Pusher or Ably — deal room chat, listing
+  feed, notifications
+- **Jobs/timers:** *(not installed)* Inngest or a queue with durable
+  scheduling. The 24h/6h/2h release timers must survive deploys; `Deal` already
+  carries the indexed deadline columns these jobs will scan.
+- **Uploads:** *(not installed)* UploadThing or Cloudflare R2 — proof
+  screenshots
+- **Serialization:** *(not installed)* `superjson` — BigInt money fields will
+  not survive `JSON.stringify` without it. Needed as soon as a money value
+  crosses a server/client boundary.
+- **UI components:** *(not installed)* shadcn/ui — the handful of primitives in
+  `components/ui.tsx` are hand-rolled for now
+- **Email delivery:** *(not installed)* needed before verification or password
+  reset can be turned on
 
 Ask before changing the payment layer, auth provider, or job scheduler.
 
@@ -292,6 +347,11 @@ payments — the manual MM confirmation step is the thing being demonstrated.
 - Money as integers in smallest unit — never floats
 - Every fund movement writes an immutable `transaction_log` row: actor, deal
   id, action, amount, before/after state, timestamp, tx signature
+- That ledger is **enforced append-only by a database trigger**
+  (`transaction_log_no_change` on `TransactionLog`): `UPDATE` and `DELETE`
+  raise SQLSTATE `23001` rather than silently no-opping. Do not try to correct
+  a ledger row — write a compensating row instead. Applied constraints and the
+  reasoning behind them are logged in `docs/DECISIONS.md`.
 - All input validated with Zod, server-side, every route
 - API routes in `app/api/`, one folder per resource
 - Deal-room components under `components/deal-room/`
@@ -299,6 +359,8 @@ payments — the manual MM confirmation step is the thing being demonstrated.
 
 ## Security Non-Negotiables
 - Never log private keys, seed phrases, or session tokens
+- Never log, return from an API, or copy into a `TransactionLog` the
+  **`Account.password`** column — it holds the scrypt password hash
 - Fund release and refund require an explicit confirmation step — no
   single-click irreversible money movement
 - Rate-limit auth, ticket creation, and every fund endpoint
@@ -319,7 +381,81 @@ npx prisma migrate dev   # apply schema changes
 npx prisma studio        # inspect DB
 ```
 
+## Design Direction
+
+This is a **financial trust product**. People hand over real money and private
+credentials on the strength of how credible it looks. It should feel like a
+trading terminal or a bank's back office — dense, calm, boring in the way
+professional tools are boring. It should not feel like a landing page.
+
+Reference points: Linear, Stripe Dashboard, Vercel, GitHub, Discord itself.
+Anti-reference: template SaaS marketing pages.
+
+### Banned outright
+Do not use any of these. If a design instinct produces one, it is wrong.
+
+- **Gradients.** No gradient backgrounds, buttons, borders, or text. Especially
+  no purple-to-blue, no "mesh gradient" blobs. Flat colour only.
+- **Emoji in the UI.** Not in headings, buttons, empty states, nav, or section
+  labels. Use icons (lucide-react) or nothing. Emoji in user-written content is
+  fine — that is the user's text, not ours.
+- **Glassmorphism** — no `backdrop-blur` frosted panels.
+- **Decorative shadows.** Shadows indicate elevation on overlays only (modals,
+  dropdowns, popovers). Cards do not float.
+- **Large border radii.** Max `rounded-md` (6px). No pill-shaped cards.
+- **Centered marketing layouts** on application pages. Content is left-aligned
+  and starts at the top.
+- **Hero sections, feature grids with icon circles, testimonial cards,
+  "Trusted by" strips** — none of this belongs in a logged-in application.
+- **Motivational or salesy microcopy.** No "Let's get started!", no "You're all
+  set 🎉", no exclamation marks. State what happened.
+- **Full-width max-w-7xl centered containers** everywhere. Dense tables and
+  queues should use the available width.
+
+### What to do instead
+
+**Colour.** Dark theme, since the audience lives in Discord. One neutral ramp
+(zinc or neutral) doing 90% of the work, plus a small set of semantic colours
+used *only* to carry meaning:
+- Deal states get colour because state is the most important thing on screen
+- Success/danger for confirm/reject actions
+- Nothing else is coloured. A button is not coloured because it is a button.
+
+Avoid indigo/violet as the accent — it is the Tailwind default and reads as
+"untouched template". Given the existing brand, a muted amber/gold works and
+matches the Discord server's identity.
+
+**Typography.** One sans for UI (Inter, or the Geist that ships with the
+scaffold). One mono (Geist Mono, JetBrains Mono) — used for every amount,
+transaction reference, deal reference, wallet address, and timestamp. Money in
+a proportional font looks amateur and misaligns in tables.
+
+Size range stays narrow: 12/13/14/16px covers the whole app. Hierarchy comes
+from weight and colour, not size jumps. No text larger than 24px anywhere.
+
+**Density.** Tighter than default Tailwind. Table rows ~36px, not 56px. A
+middleman reviewing a queue wants twenty rows visible, not six. Generous
+whitespace is a marketing-site value; this is a work tool.
+
+**Structure.** Persistent left sidebar for navigation (mirrors Discord's
+model and is what the users already know). Main content area. Deal rooms get a
+three-pane layout: nav / conversation / deal state panel.
+
+**Empty states.** One line of plain text explaining what will appear here.
+No illustration, no emoji, no encouragement.
+
+**Numbers.** Right-align in tables. Always show the asset. Always show the
+resolved total next to per-unit pricing.
+
+### The test
+Before shipping a screen, ask: *would this look out of place inside Stripe's
+dashboard?* If it would, it is too decorated.
+
+If a design choice cannot be justified by what it helps the user understand or
+do, remove it.
+
 ## Working Style
+
 - Ask clarifying questions before architectural changes
 - Prefer readable over clever
 - If a screenshot or doc conflicts with this file, ask which is authoritative

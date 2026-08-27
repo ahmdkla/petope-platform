@@ -6,6 +6,75 @@ until this file is updated.
 
 ---
 
+## Better Auth over Auth.js (NextAuth), email/password
+
+**Date:** 2026-08-27 · **Migrations:** `20260826175659_switch_to_better_auth`,
+`20260826180353_account_issuer`
+
+CLAUDE.md requires asking before changing the auth provider. This was asked and
+approved.
+
+**The deciding factor:** Auth.js v5's Credentials provider is **JWT-only and
+cannot use database sessions**. That means a `BLACKLISTED` user keeps a working
+session until their token expires — there is no server-side revocation. On a
+platform whose stated top threat is impersonation, and whose admin surface
+includes a blacklist, that is a hole rather than a trade-off.
+
+Better Auth also gives email/password as a first-class flow — scrypt hashing,
+verification, reset, change-password — where Auth.js would have each of those
+hand-rolled. And Next.js 16's `proxy.ts` (which replaced `middleware.ts`) always
+runs on the Node runtime, so the session is validated against the database on
+every protected request rather than by reading a cookie.
+
+Verified against the live database, reusing one valid session cookie throughout:
+
+| Test | Result |
+|---|---|
+| Set `status = BLACKLISTED` | `307` to `/sign-in?reason=account-unavailable` on the next request |
+| Restore `status = ACTIVE` | access returns |
+| `DELETE` the `Session` row | `307` to `/sign-in` |
+| 8 failed sign-ins in a minute | `401` ×5 then `429` ×3, with a real `RateLimit` row |
+
+**Consequences recorded:**
+
+- The three NextAuth-shaped tables were replaced. `Account` gained `password`
+  (scrypt hash — never log it, never return it, never copy it into a
+  `TransactionLog`) and `issuer`; `Session` gained `token`/`expiresAt`;
+  `VerificationToken` became `Verification`.
+- `User.discordId` and `discordUsername` are now **nullable**. They were
+  required when Discord was the only identity. Discord OAuth stays deferred,
+  not designed out.
+- Rate limiting uses **database** storage, not Better Auth's in-memory default,
+  which would keep a separate counter per serverless instance on Vercel and so
+  silently fail to limit anything.
+- `tsconfig.json` target moved `ES2017` → `ES2020`: money is `BigInt`
+  throughout, and BigInt literals require it.
+
+**Known gap:** email delivery is not wired up. `sendVerificationEmail` and
+`sendResetPassword` log to the console under `DEMO_MODE`, and
+`requireEmailVerification` is off. Password reset is not usable yet.
+
+---
+
+## Session IP/user-agent are stored raw; alt-account signals stay hashed
+
+**Date:** 2026-08-27
+
+CLAUDE.md says to flag shared wallets, IPs and devices, and the `User` columns
+hold **hashed** values for that. Better Auth's `Session.ipAddress` /
+`Session.userAgent` are **raw** — a deliberate exception, on two grounds:
+
+- they expire with the session, so nothing long-lived is held in the clear
+- session management shows a user their own devices, which needs recognisable
+  values to be worth anything
+
+The durable fraud signals remain `User.lastSeenIpHash` /
+`User.lastSeenDeviceId`, compared by equality only. Do not "fix" the
+inconsistency by hashing the session columns — that breaks device recognition
+without improving the fraud detection, which does not read them.
+
+---
+
 ## ✅ RESOLVED — ledger immutability and self-dealing constraints are applied
 
 **Date:** 2026-08-27 · **Migration:** `20260826172419_enforce_ledger_immutability`
