@@ -8,6 +8,7 @@ import { Avatar, Badge, Card, EmptyState, SectionTitle } from "@/components/ui";
 import { DealStatusPill } from "@/components/deal-status-pill";
 import { formatMoney, resolveTotal } from "@/lib/money";
 import { ImpersonationNotice } from "@/components/impersonation-notice";
+import { currentShiftWindow, isOnShift } from "@/lib/shifts";
 
 export const metadata: Metadata = { title: "Overview — EXSAVERSE" };
 export const dynamic = "force-dynamic";
@@ -15,16 +16,20 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const user = await getCurrentUser();
 
-  const [sellCount, buyCount, mmCount, completedCount, recent, myDeals, sales] =
+  const [sellCount, buyCount, middlemen, completedCount, recent, myDeals, sales] =
     await Promise.all([
-      db.listing.count({ where: { side: "SELL", status: "ACTIVE" } }),
-      db.listing.count({ where: { side: "BUY", status: "ACTIVE" } }),
-      db.user.count({
+      db.listing.count({ where: { side: "SELL", status: "ACTIVE", isTest: false } }),
+      db.listing.count({ where: { side: "BUY", status: "ACTIVE", isTest: false } }),
+      // Fetched rather than counted: "on shift" depends on each one's window.
+      db.user.findMany({
         where: { role: { in: ["MIDDLEMAN", "MAIN_MIDDLEMAN"] }, status: "ACTIVE" },
+        select: { id: true, workingHoursUtc: true },
       }),
-      db.deal.count({ where: { status: "COMPLETED" } }),
+      // Public figures exclude test-suite deals: the ledger is append-only so
+      // they cannot be deleted, but they are not trade history.
+      db.deal.count({ where: { status: "COMPLETED", isTest: false } }),
       db.listing.findMany({
-        where: { status: "ACTIVE" },
+        where: { status: "ACTIVE", isTest: false },
         orderBy: [{ promoted: "desc" }, { createdAt: "desc" }],
         take: 6,
         include: { author: { select: { id: true, displayName: true } } },
@@ -34,18 +39,22 @@ export default async function HomePage() {
             where: {
               OR: [{ buyerId: user.id }, { sellerId: user.id }, { middlemanId: user.id }],
               status: { notIn: ["COMPLETED", "CANCELLED", "REFUNDED"] },
+              isTest: false,
             },
             orderBy: { createdAt: "desc" },
             take: 5,
           })
         : Promise.resolve([]),
       db.deal.findMany({
-        where: { status: "COMPLETED" },
+        where: { status: "COMPLETED", isTest: false },
         orderBy: { completedAt: "desc" },
         take: 5,
         include: { middleman: { select: { id: true, displayName: true } } },
       }),
     ]);
+
+  const shift = currentShiftWindow();
+  const onShiftCount = middlemen.filter((m) => isOnShift(m.workingHoursUtc)).length;
 
   return (
     <AppShell>
@@ -58,7 +67,14 @@ export default async function HomePage() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Stat icon={Store} label="Spots for sale" value={sellCount} tone="sell" href="/listings?side=SELL" />
           <Stat icon={Handshake} label="Buyer requests" value={buyCount} tone="buy" href="/listings?side=BUY" />
-          <Stat icon={ShieldCheck} label="Active middlemen" value={mmCount} tone="accent" href="/middlemen" />
+          <Stat
+            icon={ShieldCheck}
+            label="Middlemen on shift"
+            value={onShiftCount}
+            tone="accent"
+            href="/middlemen?filter=on-shift"
+            note={shift.label}
+          />
           <Stat icon={CheckCircle2} label="Deals completed" value={completedCount} tone="ok" />
         </div>
 
@@ -232,12 +248,14 @@ function Stat({
   value,
   tone,
   href,
+  note,
 }: {
   icon: typeof Store;
   label: string;
   value: number;
   tone: keyof typeof STAT_TONE;
   href?: string;
+  note?: string;
 }) {
   const body = (
     <>
@@ -248,6 +266,9 @@ function Stat({
       <span className="mt-2 block font-mono tnum text-title font-bold text-ink">
         {value.toLocaleString("en-US")}
       </span>
+      {note ? (
+        <span className="mt-1 block font-mono text-meta text-ink-faint">{note}</span>
+      ) : null}
     </>
   );
 

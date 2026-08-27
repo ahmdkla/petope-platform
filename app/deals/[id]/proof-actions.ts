@@ -47,6 +47,13 @@ const submitSchema = z.object({
   ]),
   reference: referenceSchema,
   claimedAmount: z.bigint().positive().nullable(),
+  /**
+   * Which stablecoin actually arrived. Required on a STABLE deal: terms are
+   * agreed in "USDC/USDT" because they are interchangeable, but the proof has
+   * to say which one was really sent — the middleman is about to open a link
+   * and check exactly that.
+   */
+  claimedCoin: z.enum(["USDC", "USDT"]).nullable(),
   screenshotUrl: z.string().trim().url().nullable(),
 });
 
@@ -109,14 +116,23 @@ export async function submitProof(
     };
   }
 
+  // On a STABLE deal the submitter must name the coin; on a SOL deal there is
+  // nothing to choose.
+  if (deal.asset === "STABLE" && !data.claimedCoin) {
+    return {
+      ok: false,
+      error: "Say whether you sent USDC or USDT — the middleman needs to check the right one.",
+    };
+  }
+
   await paymentVerifier.submitProof({
     dealId,
     submittedById: user.id,
     kind: data.kind,
     reference: data.reference,
     claimedAmount: data.claimedAmount,
-    // The deal settles in exactly one asset; the claim inherits it.
-    claimedAsset: deal.asset,
+    // Records the ACTUAL asset, not the settlement term.
+    claimedAsset: deal.asset === "STABLE" ? data.claimedCoin : deal.asset,
     screenshotUrl: data.screenshotUrl,
   });
 

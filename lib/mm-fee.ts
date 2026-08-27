@@ -11,9 +11,11 @@ export type MmFeeConfig = {
   /**
    * Minimum fee per settlement asset, in that asset's smallest unit.
    *
-   * Per-asset rather than a single USD figure because the platform has no price
-   * feed and CLAUDE.md forbids adding one. The SOL floor is a hand-set
-   * approximation of the USD minimum and drifts as SOL moves.
+   * Two entries: STABLE and SOL. Per-asset rather than a single USD figure
+   * because the platform has no price feed and CLAUDE.md forbids adding one.
+   * The SOL floor is a hand-set approximation of the USD minimum and drifts as
+   * SOL moves. USDC/USDT are kept as aliases of the STABLE floor so a proof
+   * recorded in a concrete coin still resolves.
    */
   floor: Record<PaymentAsset, bigint>;
   /** How long after a deal closes the fee can still be refunded. */

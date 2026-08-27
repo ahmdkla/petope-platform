@@ -37,6 +37,8 @@ async function main() {
   // Drive a deal to AWAITING_PAYMENT on WALLET_SUBMIT (requires collateral).
   const deal = await db.deal.create({
     data: {
+      // Keeps test debris out of public feeds; deals cannot be deleted.
+      isTest: true,
       reference: `${String(batch).padStart(2, '0')}-PROOF-TEST`,
       batchNumber: batch,
       buyerId: buyer.id, sellerId: seller.id, status: 'OPEN',
@@ -161,6 +163,8 @@ async function main() {
   console.log('\nOTC NEEDS NO COLLATERAL (config-driven)');
   const otc = await db.deal.create({
     data: {
+      // Keeps test debris out of public feeds; deals cannot be deleted.
+      isTest: true,
       reference: `${String(batch + 1).padStart(2, '0')}-OTC-TEST`,
       batchNumber: batch + 1,
       buyerId: buyer.id, sellerId: seller.id, status: 'AWAITING_PAYMENT',

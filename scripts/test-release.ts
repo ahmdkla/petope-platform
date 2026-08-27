@@ -39,6 +39,8 @@ async function fundedDeal(opts: {
 
   const deal = await db.deal.create({
     data: {
+      // Keeps test debris out of public feeds; deals cannot be deleted.
+      isTest: true,
       reference: `${String(batch).padStart(2, '0')}-${opts.label}`,
       batchNumber: batch, buyerId: buyer.id, sellerId: seller.id, status: 'OPEN',
       projectName: opts.label, chain: 'Solana',

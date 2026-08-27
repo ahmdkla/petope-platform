@@ -22,10 +22,11 @@ import {
   Label,
   Note,
   SectionTitle,
+  Select,
   Textarea,
 } from "@/components/ui";
 import { Modal } from "@/components/modal";
-import { parseAmount } from "@/lib/money";
+import { ASSET_LABEL, parseAmount } from "@/lib/money";
 import type { ActorRole } from "@/lib/deal-transitions";
 
 export type ProofView = {
@@ -389,6 +390,7 @@ function SubmitForm({
   const router = useRouter();
   const [reference, setReference] = useState("");
   const [amount, setAmount] = useState("");
+  const [coin, setCoin] = useState<"USDC" | "USDT">("USDC");
   const [screenshot, setScreenshot] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -412,6 +414,7 @@ function SubmitForm({
         kind,
         reference: reference.trim(),
         claimedAmount: parsedAmount,
+        claimedCoin: asset === "STABLE" ? coin : null,
         screenshotUrl: screenshot.trim() || null,
       });
       if (!res.ok) setError(res.error);
@@ -438,9 +441,29 @@ function SubmitForm({
         <Hint>Stored exactly as pasted. The server never opens it.</Hint>
       </div>
 
+      {asset === "STABLE" ? (
+        <div className="space-y-1.5">
+          <Label htmlFor={`coin-${kind}`}>Which stablecoin did you send?</Label>
+          <Select
+            id={`coin-${kind}`}
+            value={coin}
+            onChange={(e) => setCoin(e.target.value as "USDC" | "USDT")}
+          >
+            <option value="USDC">USDC</option>
+            <option value="USDT">USDT</option>
+          </Select>
+          <Hint>
+            Terms were agreed in USDC/USDT because they are interchangeable. The
+            middleman needs to know which one to look for.
+          </Hint>
+        </div>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor={`amt-${kind}`}>Amount sent ({asset}, optional)</Label>
+          <Label htmlFor={`amt-${kind}`}>
+            Amount sent ({ASSET_LABEL[asset]}, optional)
+          </Label>
           <Input
             id={`amt-${kind}`}
             inputMode="decimal"

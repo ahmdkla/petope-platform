@@ -9,7 +9,9 @@ import { LISTING_TYPE_TO_METHOD } from "@/lib/listing-meta";
 import { resolveTotal } from "@/lib/money";
 import { getCollateralMinimum, getMaxConcurrentDeals } from "@/lib/admin-settings";
 
-const ASSETS = ["SOL", "USDC", "USDT"] as const;
+// Terms are agreed in one of these. USDC/USDT are no longer separate options:
+// they are interchangeable, so a listing prices in STABLE.
+const ASSETS = ["SOL", "STABLE"] as const;
 
 /** Server-side validation on every route. Never trust the client. */
 const createListingSchema = z.object({
@@ -274,6 +276,9 @@ export async function quickDealAsUser(
         // method intentionally left null — confirmed by both parties in the room.
         projectName: listing.item,
         chain: listing.chain,
+        // A deal opened on a test listing is itself test debris. Inherited
+        // rather than set by callers, so no test can forget to flag one.
+        isTest: listing.isTest,
         dealAmount,
         // MM fee is calculated when a middleman claims and terms are set.
         mmFee: 0n,

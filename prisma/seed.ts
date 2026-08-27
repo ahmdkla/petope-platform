@@ -77,37 +77,37 @@ type ListingSeed = {
 
 const LISTINGS: ListingSeed[] = [
   // --- Solana ---
-  { side: 'SELL', author: 'seller_one', item: 'Fabled Genesis', chain: 'Solana', price: usd(15), priceType: 'FOR_EACH', payment: 'USDC', specific: 'GTD', type: 'WALLET_SUBMIT', quantity: 8, remaining: 5, collateral: usd(7), acceptsOffers: true, promoted: true, projectLink: 'https://x.com/fabledgenesis' },
-  { side: 'SELL', author: 'seller_two', item: 'Solstice Pass', chain: 'Solana', price: usd(22), priceType: 'FOR_EACH', payment: 'USDC', specific: 'GTD', type: 'MINT', quantity: 4, collateral: usd(12), acceptsOffers: true },
+  { side: 'SELL', author: 'seller_one', item: 'Fabled Genesis', chain: 'Solana', price: usd(15), priceType: 'FOR_EACH', payment: 'STABLE', specific: 'GTD', type: 'WALLET_SUBMIT', quantity: 8, remaining: 5, collateral: usd(7), acceptsOffers: true, promoted: true, projectLink: 'https://x.com/fabledgenesis' },
+  { side: 'SELL', author: 'seller_two', item: 'Solstice Pass', chain: 'Solana', price: usd(22), priceType: 'FOR_EACH', payment: 'STABLE', specific: 'GTD', type: 'MINT', quantity: 4, collateral: usd(12), acceptsOffers: true },
   { side: 'SELL', author: 'seller_one', item: 'Cryptid Society', chain: 'Solana', price: sol(0.45), priceType: 'FOR_EACH', payment: 'SOL', specific: 'FCFS', type: 'WALLET_SURRENDER', quantity: 6, remaining: 2, collateral: sol(0.3) },
-  { side: 'SELL', author: 'seller_two', item: 'Lumen Protocol', chain: 'Solana', price: usd(9), priceType: 'FOR_EACH', payment: 'USDT', specific: 'FCFS', type: 'ANY', quantity: 12, remaining: 12 },
-  { side: 'SELL', author: 'seller_one', item: 'Halcyon Days', chain: 'Solana', price: usd(60), priceType: 'FOR_ALL', payment: 'USDC', specific: 'GTD', type: 'TOKEN_TRANSFER', quantity: 3, collateral: usd(20), acceptsOffers: true },
-  { side: 'SELL', author: 'seller_two', item: 'Nocturne', chain: 'Solana', price: usd(18), priceType: 'FOR_EACH', payment: 'USDC', specific: 'GTD', type: 'WALLET_SUBMIT', quantity: 5, remaining: 0, collateral: usd(9) },
+  { side: 'SELL', author: 'seller_two', item: 'Lumen Protocol', chain: 'Solana', price: usd(9), priceType: 'FOR_EACH', payment: 'STABLE', specific: 'FCFS', type: 'ANY', quantity: 12, remaining: 12 },
+  { side: 'SELL', author: 'seller_one', item: 'Halcyon Days', chain: 'Solana', price: usd(60), priceType: 'FOR_ALL', payment: 'STABLE', specific: 'GTD', type: 'TOKEN_TRANSFER', quantity: 3, collateral: usd(20), acceptsOffers: true },
+  { side: 'SELL', author: 'seller_two', item: 'Nocturne', chain: 'Solana', price: usd(18), priceType: 'FOR_EACH', payment: 'STABLE', specific: 'GTD', type: 'WALLET_SUBMIT', quantity: 5, remaining: 0, collateral: usd(9) },
   { side: 'SELL', author: 'seller_one', item: 'Tidal Drift', chain: 'Solana', price: sol(1.2), priceType: 'FOR_EACH', payment: 'SOL', specific: 'GTD', type: 'MINT', quantity: 2, collateral: sol(0.8) },
-  { side: 'SELL', author: 'seller_two', item: 'Paper Lanterns', chain: 'Solana', price: usd(11), priceType: 'FOR_EACH', payment: 'USDC', specific: 'FCFS', type: 'ANY', quantity: 20, remaining: 14, acceptsOffers: true },
+  { side: 'SELL', author: 'seller_two', item: 'Paper Lanterns', chain: 'Solana', price: usd(11), priceType: 'FOR_EACH', payment: 'STABLE', specific: 'FCFS', type: 'ANY', quantity: 20, remaining: 14, acceptsOffers: true },
 
   // --- Base ---
-  { side: 'SELL', author: 'seller_one', item: 'Northlake', chain: 'Base', price: usd(40), priceType: 'FOR_ALL', payment: 'USDT', specific: 'FCFS', type: 'MINT', quantity: 5, remaining: 5, collateral: usd(12), acceptsOffers: true },
-  { side: 'SELL', author: 'seller_two', item: 'Basecamp Founders', chain: 'Base', price: usd(35), priceType: 'FOR_EACH', payment: 'USDC', specific: 'GTD', type: 'WALLET_SUBMIT', quantity: 3, remaining: 1, collateral: usd(15), promoted: true },
-  { side: 'SELL', author: 'seller_one', item: 'Onchain Summer', chain: 'Base', price: usd(7), priceType: 'FOR_EACH', payment: 'USDC', specific: 'FCFS', type: 'ANY', quantity: 25, remaining: 18 },
-  { side: 'SELL', author: 'seller_two', item: 'Meridian', chain: 'Base', price: usd(28), priceType: 'FOR_EACH', payment: 'USDT', specific: 'GTD', type: 'WALLET_SURRENDER', quantity: 4, collateral: usd(14), acceptsOffers: true },
-  { side: 'SELL', author: 'seller_one', item: 'Gradient Club', chain: 'Base', price: usd(50), priceType: 'FOR_ALL', payment: 'USDC', specific: 'GTD', type: 'TOKEN_TRANSFER', quantity: 2 },
+  { side: 'SELL', author: 'seller_one', item: 'Northlake', chain: 'Base', price: usd(40), priceType: 'FOR_ALL', payment: 'STABLE', specific: 'FCFS', type: 'MINT', quantity: 5, remaining: 5, collateral: usd(12), acceptsOffers: true },
+  { side: 'SELL', author: 'seller_two', item: 'Basecamp Founders', chain: 'Base', price: usd(35), priceType: 'FOR_EACH', payment: 'STABLE', specific: 'GTD', type: 'WALLET_SUBMIT', quantity: 3, remaining: 1, collateral: usd(15), promoted: true },
+  { side: 'SELL', author: 'seller_one', item: 'Onchain Summer', chain: 'Base', price: usd(7), priceType: 'FOR_EACH', payment: 'STABLE', specific: 'FCFS', type: 'ANY', quantity: 25, remaining: 18 },
+  { side: 'SELL', author: 'seller_two', item: 'Meridian', chain: 'Base', price: usd(28), priceType: 'FOR_EACH', payment: 'STABLE', specific: 'GTD', type: 'WALLET_SURRENDER', quantity: 4, collateral: usd(14), acceptsOffers: true },
+  { side: 'SELL', author: 'seller_one', item: 'Gradient Club', chain: 'Base', price: usd(50), priceType: 'FOR_ALL', payment: 'STABLE', specific: 'GTD', type: 'TOKEN_TRANSFER', quantity: 2 },
 
   // --- Ethereum ---
   { side: 'SELL', author: 'seller_two', item: 'Aster Pass', chain: 'Ethereum', price: sol(0.9), priceType: 'FOR_EACH', payment: 'SOL', specific: 'GTD', type: 'MINT', quantity: 3, remaining: 2, collateral: sol(0.5), acceptsOffers: true },
-  { side: 'SELL', author: 'seller_one', item: 'Ordinal Row', chain: 'Ethereum', price: usd(120), priceType: 'FOR_EACH', payment: 'USDC', specific: 'GTD', type: 'WALLET_SUBMIT', quantity: 2, collateral: usd(60) },
-  { side: 'SELL', author: 'seller_two', item: 'Vellum', chain: 'Ethereum', price: usd(45), priceType: 'FOR_EACH', payment: 'USDT', specific: 'FCFS', type: 'ANY', quantity: 6, remaining: 3 },
-  { side: 'SELL', author: 'seller_one', item: 'Static Bloom', chain: 'Ethereum', price: usd(30), priceType: 'FOR_EACH', payment: 'USDC', specific: 'GTD', type: 'WALLET_SURRENDER', quantity: 4, collateral: usd(18), acceptsOffers: true },
-  { side: 'SELL', author: 'seller_two', item: 'Reverie', chain: 'Robinhood', price: usd(9), priceType: 'FOR_EACH', payment: 'USDC', specific: 'GTD', type: 'TOKEN_TRANSFER', quantity: 3, remaining: 1 },
+  { side: 'SELL', author: 'seller_one', item: 'Ordinal Row', chain: 'Ethereum', price: usd(120), priceType: 'FOR_EACH', payment: 'STABLE', specific: 'GTD', type: 'WALLET_SUBMIT', quantity: 2, collateral: usd(60) },
+  { side: 'SELL', author: 'seller_two', item: 'Vellum', chain: 'Ethereum', price: usd(45), priceType: 'FOR_EACH', payment: 'STABLE', specific: 'FCFS', type: 'ANY', quantity: 6, remaining: 3 },
+  { side: 'SELL', author: 'seller_one', item: 'Static Bloom', chain: 'Ethereum', price: usd(30), priceType: 'FOR_EACH', payment: 'STABLE', specific: 'GTD', type: 'WALLET_SURRENDER', quantity: 4, collateral: usd(18), acceptsOffers: true },
+  { side: 'SELL', author: 'seller_two', item: 'Reverie', chain: 'Robinhood', price: usd(9), priceType: 'FOR_EACH', payment: 'STABLE', specific: 'GTD', type: 'TOKEN_TRANSFER', quantity: 3, remaining: 1 },
 
   // --- buyers looking ---
-  { side: 'BUY', author: 'buyer_one', item: 'Fabled Genesis', chain: 'Solana', price: usd(13), priceType: 'FOR_EACH', payment: 'USDC', specific: 'GTD', type: 'ANY', quantity: 2, acceptsOffers: true },
-  { side: 'BUY', author: 'buyer_two', item: 'Solstice Pass', chain: 'Solana', price: usd(20), priceType: 'FOR_EACH', payment: 'USDC', specific: 'GTD', type: 'MINT', quantity: 1 },
-  { side: 'BUY', author: 'buyer_three', item: 'Basecamp Founders', chain: 'Base', price: usd(32), priceType: 'FOR_EACH', payment: 'USDT', specific: 'GTD', type: 'WALLET_SUBMIT', quantity: 3, acceptsOffers: true },
-  { side: 'BUY', author: 'buyer_one', item: 'Onchain Summer', chain: 'Base', price: usd(6), priceType: 'FOR_EACH', payment: 'USDC', specific: 'FCFS', type: 'ANY', quantity: 10 },
-  { side: 'BUY', author: 'buyer_two', item: 'Ordinal Row', chain: 'Ethereum', price: usd(100), priceType: 'FOR_EACH', payment: 'USDC', specific: 'GTD', type: 'ANY', quantity: 1, acceptsOffers: true },
+  { side: 'BUY', author: 'buyer_one', item: 'Fabled Genesis', chain: 'Solana', price: usd(13), priceType: 'FOR_EACH', payment: 'STABLE', specific: 'GTD', type: 'ANY', quantity: 2, acceptsOffers: true },
+  { side: 'BUY', author: 'buyer_two', item: 'Solstice Pass', chain: 'Solana', price: usd(20), priceType: 'FOR_EACH', payment: 'STABLE', specific: 'GTD', type: 'MINT', quantity: 1 },
+  { side: 'BUY', author: 'buyer_three', item: 'Basecamp Founders', chain: 'Base', price: usd(32), priceType: 'FOR_EACH', payment: 'STABLE', specific: 'GTD', type: 'WALLET_SUBMIT', quantity: 3, acceptsOffers: true },
+  { side: 'BUY', author: 'buyer_one', item: 'Onchain Summer', chain: 'Base', price: usd(6), priceType: 'FOR_EACH', payment: 'STABLE', specific: 'FCFS', type: 'ANY', quantity: 10 },
+  { side: 'BUY', author: 'buyer_two', item: 'Ordinal Row', chain: 'Ethereum', price: usd(100), priceType: 'FOR_EACH', payment: 'STABLE', specific: 'GTD', type: 'ANY', quantity: 1, acceptsOffers: true },
   { side: 'BUY', author: 'buyer_three', item: 'Tidal Drift', chain: 'Solana', price: sol(1), priceType: 'FOR_EACH', payment: 'SOL', specific: 'GTD', type: 'MINT', quantity: 2 },
-  { side: 'BUY', author: 'buyer_one', item: 'Meridian', chain: 'Base', price: usd(25), priceType: 'FOR_ALL', payment: 'USDT', specific: 'GTD', type: 'ANY', quantity: 2, acceptsOffers: true },
+  { side: 'BUY', author: 'buyer_one', item: 'Meridian', chain: 'Base', price: usd(25), priceType: 'FOR_ALL', payment: 'STABLE', specific: 'GTD', type: 'ANY', quantity: 2, acceptsOffers: true },
 ];
 
 async function main() {
@@ -141,7 +141,7 @@ async function main() {
     data: [
       {
         key: 'collateral.minimum',
-        value: { amount: 5_000_000, asset: 'USDC', note: 'smallest unit = $5.00 USDC' },
+        value: { amount: 5_000_000, asset: 'STABLE', note: 'smallest unit = $5.00 in USDC or USDT' },
         description: 'Minimum seller collateral, all methods.',
         updatedById: ids.admin,
       },
@@ -149,9 +149,9 @@ async function main() {
         key: 'mmFee.config',
         value: {
           percentBasisPoints: 500,
-          floor: { USDC: 5_000_000, USDT: 5_000_000, SOL: 30_000_000 },
+          floor: { STABLE: 5_000_000, SOL: 30_000_000 },
           refundWindowHours: 24,
-          note: 'fee = max(floor, (dealAmount + collateral) * 5%). Floors are per-asset smallest units: there is no price feed, so the SOL floor is set by hand and drifts as SOL moves.',
+          note: 'fee = max(floor, (dealAmount + collateral) * 5%). One floor per settlement asset in smallest units. USDC and USDT share the STABLE floor. There is no price feed, so the SOL floor is set by hand and drifts as SOL moves.',
         },
         description: 'MM fee structure and the scammer refund window.',
         updatedById: ids.admin,
@@ -291,7 +291,7 @@ async function main() {
         chain: 'Solana',
         dealAmount: usd(45),
         mmFee: usd(5),
-        asset: 'USDC',
+        asset: 'STABLE',
         quantity: 1,
         specific: 'GTD',
         priceType: 'FOR_ALL',
@@ -307,6 +307,7 @@ async function main() {
         actorId: ids[c.mm],
         action: 'FUNDS_RELEASED',
         amount: usd(45),
+        // The ledger records the actual coin, not the settlement term.
         asset: 'USDC',
         fromStatus: 'AWAITING_CONFIRMATION',
         toStatus: 'COMPLETED',

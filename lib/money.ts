@@ -5,9 +5,36 @@ import type { PaymentAsset, PriceType } from '@prisma/client';
  * with its asset. Never a float, never a bare number.
  */
 
-/** Decimal places per settlement asset. SOL has 9 (lamports); stables have 6. */
+/**
+ * The two things terms can be agreed in. USDC and USDT are interchangeable, so
+ * a listing is priced in STABLE and the exact coin is settled at payment time.
+ */
+export type SettlementAsset = Extract<PaymentAsset, 'SOL' | 'STABLE'>;
+
+export const SETTLEMENT_ASSETS: SettlementAsset[] = ['SOL', 'STABLE'];
+
+/** What the user sees. STABLE is not a coin, so it is never shown as one. */
+export const ASSET_LABEL: Record<PaymentAsset, string> = {
+  SOL: 'SOL',
+  STABLE: 'USDC/USDT',
+  USDC: 'USDC',
+  USDT: 'USDT',
+};
+
+/** The concrete coins a STABLE deal can actually be paid in. */
+export const STABLE_COINS: PaymentAsset[] = ['USDC', 'USDT'];
+
+export function isStable(asset: PaymentAsset): boolean {
+  return asset === 'STABLE' || asset === 'USDC' || asset === 'USDT';
+}
+
+/**
+ * Decimal places per asset. SOL has 9 (lamports); every stablecoin here has 6,
+ * which is why STABLE can carry an amount before the coin is known.
+ */
 const DECIMALS: Record<PaymentAsset, number> = {
   SOL: 9,
+  STABLE: 6,
   USDC: 6,
   USDT: 6,
 };
@@ -15,6 +42,7 @@ const DECIMALS: Record<PaymentAsset, number> = {
 /** Trailing zeros are noise in a table; keep at most this many decimals. */
 const DISPLAY_DECIMALS: Record<PaymentAsset, number> = {
   SOL: 4,
+  STABLE: 2,
   USDC: 2,
   USDT: 2,
 };
@@ -39,7 +67,7 @@ export function formatAmount(amount: bigint, asset: PaymentAsset): string {
 
 /** Always render the asset beside the number — a bare figure is ambiguous. */
 export function formatMoney(amount: bigint, asset: PaymentAsset): string {
-  return `${formatAmount(amount, asset)} ${asset}`;
+  return `${formatAmount(amount, asset)} ${ASSET_LABEL[asset]}`;
 }
 
 /** Parse user input ("15.5") into smallest units. Returns null if unparseable. */

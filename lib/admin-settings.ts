@@ -14,7 +14,14 @@ export type { MmFeeConfig };
 
 const MM_FEE_DEFAULT: MmFeeConfig = {
   percentBasisPoints: 500,
-  floor: { USDC: 5_000_000n, USDT: 5_000_000n, SOL: 30_000_000n },
+  // STABLE is the settlement value; USDC/USDT mirror it so a fee computed
+  // against a concrete coin resolves to the same floor.
+  floor: {
+    STABLE: 5_000_000n,
+    USDC: 5_000_000n,
+    USDT: 5_000_000n,
+    SOL: 30_000_000n,
+  },
   refundWindowHours: 24,
 };
 
@@ -29,9 +36,14 @@ export async function getMmFeeConfig(): Promise<MmFeeConfig> {
   };
 
   const floor = { ...MM_FEE_DEFAULT.floor };
-  for (const asset of ['SOL', 'USDC', 'USDT'] as PaymentAsset[]) {
+  for (const asset of ['SOL', 'STABLE', 'USDC', 'USDT'] as PaymentAsset[]) {
     const raw = v.floor?.[asset];
     if (raw !== undefined) floor[asset] = BigInt(raw);
+  }
+  // Config only needs to state STABLE; the concrete coins follow it.
+  if (v.floor?.STABLE !== undefined) {
+    floor.USDC = floor.STABLE;
+    floor.USDT = floor.STABLE;
   }
 
   return {

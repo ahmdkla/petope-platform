@@ -68,6 +68,8 @@ async function main() {
   const batch = (max._max.batchNumber ?? 0) + 1;
   const deal = await db.deal.create({
     data: {
+      // Keeps test debris out of public feeds; deals cannot be deleted.
+      isTest: true,
       reference: `${String(batch).padStart(2, '0')}-FEE-TEST`,
       batchNumber: batch, buyerId: buyer.id, sellerId: seller.id, status: 'OPEN',
       projectName: 'Fee Test', chain: 'Solana',
@@ -127,6 +129,8 @@ async function main() {
   // A deal that closed just now, so it is inside the window.
   const closed = await db.deal.create({
     data: {
+      // Keeps test debris out of public feeds; deals cannot be deleted.
+      isTest: true,
       reference: `${String(batch + 1).padStart(2, '0')}-FEE-CLOSED`,
       batchNumber: batch + 1, buyerId: buyer.id, sellerId: seller.id,
       middlemanId: mm.id, method: 'OTC', status: 'COMPLETED',
@@ -140,6 +144,8 @@ async function main() {
   // The ordinary refund path must leave the fee alone.
   const disputed = await db.deal.create({
     data: {
+      // Keeps test debris out of public feeds; deals cannot be deleted.
+      isTest: true,
       reference: `${String(batch + 2).padStart(2, '0')}-FEE-DISPUTE`,
       batchNumber: batch + 2, buyerId: buyer.id, sellerId: seller.id,
       middlemanId: mm.id, method: 'OTC', status: 'DISPUTED',
@@ -174,6 +180,8 @@ async function main() {
 
   const closed2 = await db.deal.create({
     data: {
+      // Keeps test debris out of public feeds; deals cannot be deleted.
+      isTest: true,
       reference: `${String(batch + 4).padStart(2, '0')}-FEE-ADMIN`,
       batchNumber: batch + 4, buyerId: buyer.id, sellerId: seller.id,
       middlemanId: mm.id, method: 'OTC', status: 'COMPLETED',
@@ -202,6 +210,8 @@ async function main() {
   // Outside the window.
   const old = await db.deal.create({
     data: {
+      // Keeps test debris out of public feeds; deals cannot be deleted.
+      isTest: true,
       reference: `${String(batch + 3).padStart(2, '0')}-FEE-OLD`,
       batchNumber: batch + 3, buyerId: buyer.id, sellerId: seller.id,
       middlemanId: mm.id, method: 'OTC', status: 'COMPLETED',

@@ -13,12 +13,33 @@ import { formatMoney } from "@/lib/money";
 export const metadata: Metadata = { title: "My deals — EXSAVERSE" };
 export const dynamic = "force-dynamic";
 
-export default async function DealsPage() {
+const ROLE_LABEL: Record<string, string> = {
+  buyer: "As buyer",
+  seller: "As seller",
+  middleman: "As middleman",
+};
+
+export default async function DealsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ role?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/sign-in?next=/deals");
 
+  const { role: roleFilter } = await searchParams;
+
+  const scope =
+    roleFilter === "buyer"
+      ? { buyerId: user.id }
+      : roleFilter === "seller"
+        ? { sellerId: user.id }
+        : roleFilter === "middleman"
+          ? { middlemanId: user.id }
+          : { OR: [{ buyerId: user.id }, { sellerId: user.id }, { middlemanId: user.id }] };
+
   const deals = await db.deal.findMany({
-    where: { OR: [{ buyerId: user.id }, { sellerId: user.id }, { middlemanId: user.id }] },
+    where: { ...scope, isTest: false },
     include: {
       buyer: { select: { displayName: true } },
       seller: { select: { displayName: true } },
@@ -31,14 +52,22 @@ export default async function DealsPage() {
   return (
     <AppShell>
       <PageHeader
-        title="My deals"
-        description="Every deal you are a party to, as buyer, seller, or assigned middleman."
+        title={ROLE_LABEL[roleFilter ?? ""] ?? "My deals"}
+        description={
+          roleFilter
+            ? `Deals where you are the ${roleFilter}.`
+            : "Every deal you are a party to, as buyer, seller, or assigned middleman."
+        }
       />
       <PageBody>
         {deals.length === 0 ? (
           <EmptyState
             icon={Handshake}
-            message="You have no deals yet. Opening a deal from a listing creates one here."
+            message={
+              roleFilter
+                ? `You have no deals as ${roleFilter}.`
+                : "You have no deals yet. Opening a deal from a listing creates one here."
+            }
             action={
               <Link
                 href="/listings"

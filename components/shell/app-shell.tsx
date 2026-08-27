@@ -4,6 +4,7 @@ import { UserMenu } from "./user-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { DemoBanner } from "@/components/demo-banner";
 import { getCurrentUser, isMiddleman } from "@/lib/session";
+import { FloatingChat } from "@/components/chat/floating-chat";
 
 export async function AppShell({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
@@ -43,6 +44,9 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+
+      {/* Sits above every page so a conversation survives navigation. */}
+      {user ? <FloatingChat currentUserId={user.id} /> : null}
     </div>
   );
 }

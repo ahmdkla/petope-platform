@@ -84,10 +84,25 @@ enum PriceType {
 
 /// Settlement asset allowlist — Solana network. Reject anything outside it.
 /// Separate from the *project's* chain, which is free text on Listing/Deal.
+/**
+ * Settlement assets, Solana network.
+ * Two distinct uses, deliberately sharing one enum:
+ * SETTLEMENT (Listing.payment, Offer.asset, Deal.asset) is SOL or STABLE.
+ * USDC and USDT are interchangeable here and a seller does not care which
+ * arrives, so terms are agreed in STABLE and the exact coin is unknown until
+ * the payment lands. Both have 6 decimals, so amounts are unambiguous.
+ * ACTUAL (PaymentProof.claimedAsset, TransactionLog.asset) records what was
+ * really sent, so it stays USDC or USDT. Those rows are history: the ledger
+ * is append-only and must never be rewritten to say something else moved.
+ * USDC and USDT are therefore NOT deprecated — they are still the only correct
+ * values for the actual columns. Use the SettlementAsset type in lib/money.ts
+ * to keep the two apart in code.
+ */
 enum PaymentAsset {
   SOL
   USDC
   USDT
+  STABLE
 }
 
 enum SpotType {
@@ -422,6 +437,13 @@ model Listing {
   // Confirm what it is before finalizing — do not invent one.
 
   // --- derived / system ---
+  /**
+   * /**
+   * Created by an automated test. Same reasoning as Deal.isTest: a listing
+   * referenced by a deal cannot be deleted (onDelete: Restrict), so test
+   * fixtures would otherwise sit in the public marketplace forever.
+   */
+  isTest        Boolean       @default(false)
   status        ListingStatus @default(ACTIVE)
   /// prem-listing: paid/promoted tier, granted via an admin surface.
   promoted      Boolean       @default(false)
@@ -572,6 +594,15 @@ model Deal {
   /// The buyer confirming they received what they paid for. Release normally
   /// requires this; once autoReleaseAt passes, buyer silence stops blocking it.
   receiptConfirmedAt DateTime?
+
+  /**
+   * Created by an automated test rather than by a person.
+   * Test suites drive real deals through the real engine, which is the point —
+   * but the ledger is append-only and deals cannot be deleted, so the debris
+   * would otherwise surface in public feeds as if it were trade history.
+   * Public surfaces (recent sales, last-sales, dashboard counts) filter on this.
+   */
+  isTest Boolean @default(false)
 
   /// When this deal took its spots out of the listing's supply.
   ///

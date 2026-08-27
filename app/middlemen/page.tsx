@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { Avatar, Badge } from "@/components/ui";
 import { ShieldAlert, BadgeCheck, Clock3, Handshake, MessageSquareQuote } from "lucide-react";
-import { shiftStatus } from "@/lib/shifts";
+import { shiftStatus, currentShiftWindow } from "@/lib/shifts";
 
 export const metadata: Metadata = {
   title: "Middleman roster — EXSAVERSE",
@@ -14,7 +14,14 @@ export const metadata: Metadata = {
 // Public page, always current: a stale roster is an impersonation risk.
 export const dynamic = "force-dynamic";
 
-export default async function MiddlemenPage() {
+export default async function MiddlemenPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>;
+}) {
+  const { filter } = await searchParams;
+  const onShiftOnly = filter === "on-shift";
+
   const middlemen = await db.user.findMany({
     where: {
       role: { in: ["MIDDLEMAN", "MAIN_MIDDLEMAN"] },
@@ -35,12 +42,20 @@ export default async function MiddlemenPage() {
   // Shift windows are absolute UTC, so this is deterministic server-side and
   // the same for every viewer. The page is already force-dynamic.
   const onShiftNow = middlemen.filter((m) => shiftStatus(m.workingHoursUtc).onShift).length;
+  const shown = onShiftOnly
+    ? middlemen.filter((m) => shiftStatus(m.workingHoursUtc).onShift)
+    : middlemen;
+  const shift = currentShiftWindow();
 
   return (
     <AppShell>
       <PageHeader
-        title="Middleman roster"
-        description="This page is the only authoritative list of EXSAVERSE middlemen."
+        title={onShiftOnly ? "On shift now" : "Middleman roster"}
+        description={
+          onShiftOnly
+            ? `Middlemen covering the ${shift.label} shift. This page is the only authoritative list.`
+            : "This page is the only authoritative list of EXSAVERSE middlemen."
+        }
         actions={
           onShiftNow > 0 ? (
             <Badge tone="ok">
@@ -60,13 +75,15 @@ export default async function MiddlemenPage() {
           </span>
         </div>
 
-        {middlemen.length === 0 ? (
+        {shown.length === 0 ? (
           <p className="mt-6 text-body text-ink-muted">
-            No middlemen are listed yet.
+            {onShiftOnly
+              ? `Nobody is covering the ${shift.label} shift right now.`
+              : "No middlemen are listed yet."}
           </p>
         ) : (
           <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {middlemen.map((m) => (
+            {shown.map((m) => (
               <article
                 key={m.id}
                 className="rounded-xl border border-line bg-card p-6 shadow-card transition-colors duration-200 hover:border-line-strong"

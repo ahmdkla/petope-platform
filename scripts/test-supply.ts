@@ -51,6 +51,9 @@ async function makeListing(opts: {
       price: 10_000_000n, priceType: opts.priceType, payment: 'USDC',
       specific: 'GTD', type: 'TOKEN_TRANSFER',
       quantity: opts.quantity, quantityRemaining: opts.quantity, status: 'ACTIVE',
+      // Keeps fixtures out of the public marketplace; listings referenced by a
+      // deal cannot be deleted.
+      isTest: true,
     },
   });
 }

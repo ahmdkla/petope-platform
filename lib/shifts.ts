@@ -53,3 +53,19 @@ export function shiftStatus(
   const untilStart = (w.startHour > hour ? w.startHour : w.startHour + 24) - hour;
   return { onShift: false, label: `off shift · starts in ${untilStart}h` };
 }
+
+/** The three standing shift windows, in the order they run. */
+export const SHIFT_WINDOWS = [
+  { label: '00:00-08:00 UTC', startHour: 0, endHour: 8 },
+  { label: '08:00-16:00 UTC', startHour: 8, endHour: 16 },
+  { label: '16:00-24:00 UTC', startHour: 16, endHour: 24 },
+] as const;
+
+/** Which standing window covers the given moment. */
+export function currentShiftWindow(now = new Date()): (typeof SHIFT_WINDOWS)[number] {
+  const hour = now.getUTCHours();
+  return (
+    SHIFT_WINDOWS.find((w) => hour >= w.startHour && hour < w.endHour) ??
+    SHIFT_WINDOWS[0]
+  );
+}

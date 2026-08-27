@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type {
   ListingSide,
@@ -10,6 +10,7 @@ import type {
   SpotType,
 } from "@prisma/client";
 import { createListing } from "../actions";
+import { Combobox } from "@/components/combobox";
 import {
   Button,
   Card,
@@ -22,7 +23,13 @@ import {
   Select,
   SectionTitle,
 } from "@/components/ui";
-import { formatMoney, parseAmount, resolveTotal } from "@/lib/money";
+import {
+  ASSET_LABEL,
+  SETTLEMENT_ASSETS,
+  formatMoney,
+  parseAmount,
+  resolveTotal,
+} from "@/lib/money";
 import {
   COMMON_CHAINS,
   FCFS_WARNING,
@@ -38,31 +45,92 @@ type Defaults = {
   type: ListingType;
 };
 
-const ASSETS: PaymentAsset[] = ["SOL", "USDC", "USDT"];
+// Only what terms can be agreed in. The exact stablecoin is settled later.
+const ASSETS = SETTLEMENT_ASSETS;
+
+export const DRAFT_KEY = "exsaverse-listing-draft";
+
+export type ListingDraft = {
+  side: ListingSide;
+  item: string;
+  chain: string;
+  price: string;
+  priceType: PriceType;
+  payment: PaymentAsset;
+  specific: SpotType;
+  type: ListingType;
+  quantity: string;
+  collateral: string;
+  projectLink: string;
+  acceptsOffers: boolean;
+};
+
+function readDraft(): ListingDraft | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    return raw ? (JSON.parse(raw) as ListingDraft) : null;
+  } catch {
+    return null;
+  }
+}
+
+function clearDraft() {
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // Private browsing; nothing was stored to clear.
+  }
+  window.dispatchEvent(new Event(DRAFT_KEY));
+}
 
 export function ListingForm({
   knownChains,
   defaults,
+  onDone,
 }: {
   knownChains: string[];
   defaults: Defaults | null;
+  /** Called after a successful post, so a modal host can close itself. */
+  onDone?: () => void;
 }) {
+  // Read once, synchronously, so the first render already has the draft —
+  // no setState-in-effect, no flash of empty fields.
+  const [restored] = useState(() => (typeof window === "undefined" ? null : readDraft()));
+  const [draftRestored, setDraftRestored] = useState(Boolean(restored));
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const [side, setSide] = useState<ListingSide>(defaults?.side ?? "SELL");
-  const [item, setItem] = useState("");
-  const [chain, setChain] = useState(defaults?.chain ?? "Solana");
-  const [price, setPrice] = useState("");
-  const [priceType, setPriceType] = useState<PriceType>("FOR_EACH");
-  const [payment, setPayment] = useState<PaymentAsset>(defaults?.payment ?? "USDC");
-  const [specific, setSpecific] = useState<SpotType>(defaults?.specific ?? "GTD");
-  const [type, setType] = useState<ListingType>(defaults?.type ?? "ANY");
-  const [quantity, setQuantity] = useState("1");
-  const [collateral, setCollateral] = useState("");
-  const [projectLink, setProjectLink] = useState("");
-  const [acceptsOffers, setAcceptsOffers] = useState(false);
+  const [side, setSide] = useState<ListingSide>(restored?.side ?? defaults?.side ?? "SELL");
+  const [item, setItem] = useState(restored?.item ?? "");
+  const [chain, setChain] = useState(restored?.chain ?? defaults?.chain ?? "Solana");
+  const [price, setPrice] = useState(restored?.price ?? "");
+  const [priceType, setPriceType] = useState<PriceType>(restored?.priceType ?? "FOR_EACH");
+  const [payment, setPayment] = useState<PaymentAsset>(restored?.payment ?? defaults?.payment ?? "STABLE");
+  const [specific, setSpecific] = useState<SpotType>(restored?.specific ?? defaults?.specific ?? "GTD");
+  const [type, setType] = useState<ListingType>(restored?.type ?? defaults?.type ?? "ANY");
+  const [quantity, setQuantity] = useState(restored?.quantity ?? "1");
+  const [collateral, setCollateral] = useState(restored?.collateral ?? "");
+  const [projectLink, setProjectLink] = useState(restored?.projectLink ?? "");
+  const [acceptsOffers, setAcceptsOffers] = useState(restored?.acceptsOffers ?? false);
+
+  // Persist on change so an accidental close loses nothing. Written on every
+  // keystroke rather than on an interval: the whole point is surviving a close
+  // the user did not plan.
+  useEffect(() => {
+    const draft: ListingDraft = {
+      side, item, chain, price, priceType, payment, specific, type,
+      quantity, collateral, projectLink, acceptsOffers,
+    };
+    const empty = !item.trim() && !price.trim() && !collateral.trim() && !projectLink.trim();
+    try {
+      if (empty) localStorage.removeItem(DRAFT_KEY);
+      else localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch {
+      // Private browsing: the form still works, it just will not survive a close.
+    }
+    window.dispatchEvent(new Event(DRAFT_KEY));
+  }, [side, item, chain, price, priceType, payment, specific, type, quantity, collateral, projectLink, acceptsOffers]);
 
   const chainOptions = useMemo(
     () => Array.from(new Set([...COMMON_CHAINS, ...knownChains])).sort(),
@@ -114,12 +182,44 @@ export function ListingForm({
         acceptsOffers,
       });
       if (!res.ok) setError(res.error);
-      else router.push(`/listings?side=${side}`);
+      else {
+        clearDraft();
+        if (onDone) {
+          onDone();
+          router.refresh();
+        } else {
+          router.push(`/listings?side=${side}`);
+        }
+      }
     });
   }
 
   return (
     <form onSubmit={submit} className="max-w-3xl space-y-6">
+      {draftRestored ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warn/25 bg-warn-soft p-4">
+          <p className="text-body text-warn">
+            Unsaved draft restored from the last time you started this.
+          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              clearDraft();
+              setDraftRestored(false);
+              setItem("");
+              setPrice("");
+              setCollateral("");
+              setProjectLink("");
+              setQuantity("1");
+              setAcceptsOffers(false);
+            }}
+          >
+            Discard draft
+          </Button>
+        </div>
+      ) : null}
       {/* One form, one model, a side toggle. Not two flows. */}
       <Card className="space-y-4">
         <fieldset className="space-y-1.5">
@@ -171,19 +271,15 @@ export function ListingForm({
             <Label htmlFor="chain">
               Project chain <Req />
             </Label>
-            <Input
+            <Combobox
               id="chain"
-              list="chain-options"
               value={chain}
-              onChange={(e) => setChain(e.target.value)}
+              onChange={setChain}
+              options={chainOptions}
               required
               maxLength={60}
+              placeholder="Solana, Base, Ethereum..."
             />
-            <datalist id="chain-options">
-              {chainOptions.map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
             <Hint>
               The network the project mints on. Not how you get paid — new chains
               appear constantly, so type any value.
@@ -235,11 +331,16 @@ export function ListingForm({
             >
               {ASSETS.map((a) => (
                 <option key={a} value={a}>
-                  {a}
+                  {ASSET_LABEL[a]}
                 </option>
               ))}
             </Select>
-            <Hint>Always settled on Solana, whatever the project chain is.</Hint>
+            <Hint>
+              {payment === "STABLE"
+                ? "USDC and USDT are interchangeable. The buyer sends either; which one is recorded when the payment lands."
+                : "Settled in SOL."}{" "}
+              Always on Solana, whatever the project chain is.
+            </Hint>
           </div>
         </div>
 
@@ -355,7 +456,11 @@ export function ListingForm({
         <Button type="submit" disabled={pending}>
           {pending ? "Posting" : "Post listing"}
         </Button>
-        <Button type="button" variant="secondary" onClick={() => router.back()}>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => (onDone ? onDone() : router.back())}
+        >
           Cancel
         </Button>
       </div>

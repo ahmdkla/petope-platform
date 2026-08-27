@@ -12,11 +12,14 @@ export function Modal({
   children,
   footer,
   onClose,
+  size = "md",
 }: {
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
   onClose: () => void;
+  /** "lg" for forms that would otherwise scroll in a narrow column. */
+  size?: "md" | "lg";
 }) {
   const panel = useRef<HTMLDivElement>(null);
 
@@ -38,9 +41,11 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className="relative z-10 w-full max-w-md rounded-xl border border-line bg-card shadow-overlay outline-none"
+        className={`relative z-10 flex max-h-[calc(100dvh-4rem)] w-full flex-col rounded-xl border border-line bg-card shadow-overlay outline-none ${
+          size === "lg" ? "max-w-3xl" : "max-w-md"
+        }`}
       >
-        <div className="flex items-center justify-between border-b border-line px-6 py-4">
+        <div className="flex shrink-0 items-center justify-between border-b border-line px-6 py-4">
           <h2 className="text-section font-semibold tracking-tight text-ink">{title}</h2>
           <button
             type="button"
@@ -52,10 +57,10 @@ export function Modal({
           </button>
         </div>
 
-        <div className="px-6 py-5 text-left">{children}</div>
+        <div className="overflow-y-auto px-6 py-5 text-left">{children}</div>
 
         {footer ? (
-          <div className="flex justify-end gap-3 border-t border-line px-6 py-4">
+          <div className="flex shrink-0 justify-end gap-3 border-t border-line px-6 py-4">
             {footer}
           </div>
         ) : null}

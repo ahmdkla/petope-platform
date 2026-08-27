@@ -47,6 +47,8 @@ async function main() {
 
   const deal = await db.deal.create({
     data: {
+      // Keeps test debris out of public feeds; deals cannot be deleted.
+      isTest: true,
       reference: `${String(batch).padStart(2, '0')}-LIFECYCLE-TEST`,
       batchNumber: batch,
       listingId: listing.id,
@@ -217,6 +219,8 @@ async function main() {
   console.log('\nCANCELLATION RULE');
   const cancelDeal = await db.deal.create({
     data: {
+      // Keeps test debris out of public feeds; deals cannot be deleted.
+      isTest: true,
       reference: `${String(batch + 1).padStart(2, '0')}-CANCEL-TEST`,
       batchNumber: batch + 1,
       buyerId: buyer.id,
