@@ -262,7 +262,14 @@ async function main() {
   // and the raw reset this script performed to hand the deal to akla did NOT
   // erase it. That is the append-only ledger behaving correctly — undoing a
   // transition means writing a compensating row, never deleting one.
-  const expected = ['DEAL_CLAIMED', 'DEAL_CLAIMED', 'TERMS_LOCKED', 'DEAL_FUNDED'];
+  // PAYMENT_REQUESTED, not DEAL_FUNDED: opening the payment window is not the
+  // same event as both payments being verified.
+  const expected = [
+    'DEAL_CLAIMED',
+    'DEAL_CLAIMED',
+    'TERMS_LOCKED',
+    'PAYMENT_REQUESTED',
+  ];
   check(
     'ledger records exactly the successful transitions',
     JSON.stringify(logs.map((l) => l.action)) === JSON.stringify(expected),

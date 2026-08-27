@@ -154,6 +154,9 @@ enum TransactionAction {
   PROOF_SUBMITTED
   PROOF_CONFIRMED
   PROOF_REJECTED
+  /// The middleman opened the payment window. Distinct from DEAL_FUNDED, which
+  /// records that both payments were actually confirmed.
+  PAYMENT_REQUESTED
   DEAL_FUNDED
   HANDOVER_DECLARED
   DELIVERY_MARKED

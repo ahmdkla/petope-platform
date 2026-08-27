@@ -1,4 +1,4 @@
-import type { DealMethod } from '@prisma/client';
+import type { DealMethod, ProofKind } from '@prisma/client';
 
 /**
  * The 7 escrow methods as CONFIGURATION, not branching code.
@@ -219,4 +219,50 @@ export const HANDOVER_LABEL: Record<DealMethodRule['offPlatformHandover'], strin
  */
 export function canStillCancel(privateDataHandedOverAt: Date | null): boolean {
   return privateDataHandedOverAt === null;
+}
+
+/**
+ * Which proofs must be CONFIRMED before a deal counts as funded.
+ *
+ * Derived from the method config, not hardcoded: the buyer always pays, and
+ * collateral is required only where the method says so. Adding a method with
+ * different funding needs is a change to the table above, not to this function.
+ */
+export function requiredProofKinds(method: DealMethod): ProofKind[] {
+  const rule = DEAL_METHOD_RULES[method];
+  const kinds: ProofKind[] = ['BUYER_PAYMENT'];
+  if (rule.requiresCollateral) kinds.push('SELLER_COLLATERAL');
+  return kinds;
+}
+
+/** Who is expected to submit each kind of proof. */
+export const PROOF_SUBMITTER: Record<ProofKind, 'BUYER' | 'SELLER' | 'MIDDLEMAN'> = {
+  BUYER_PAYMENT: 'BUYER',
+  SELLER_COLLATERAL: 'SELLER',
+  SELLER_NFT_TRANSFER: 'SELLER',
+  MM_RELEASE: 'MIDDLEMAN',
+  MM_REFUND: 'MIDDLEMAN',
+  MM_COLLATERAL_RETURN: 'MIDDLEMAN',
+};
+
+export const PROOF_KIND_LABEL: Record<ProofKind, string> = {
+  BUYER_PAYMENT: 'Buyer payment',
+  SELLER_COLLATERAL: 'Seller collateral',
+  MM_RELEASE: 'Release to seller',
+  MM_REFUND: 'Refund to buyer',
+  MM_COLLATERAL_RETURN: 'Collateral returned',
+  SELLER_NFT_TRANSFER: 'NFT transfer',
+};
+
+/** What the buyer owes in total, per the method's buyerPays list. */
+export function buyerTotal(
+  method: DealMethod,
+  amounts: { dealAmount: bigint; mmFee: bigint; mintPrice: bigint | null },
+): bigint {
+  const rule = DEAL_METHOD_RULES[method];
+  let total = 0n;
+  if (rule.buyerPays.includes('deal_amount')) total += amounts.dealAmount;
+  if (rule.buyerPays.includes('mm_fee')) total += amounts.mmFee;
+  if (rule.buyerPays.includes('mint_price')) total += amounts.mintPrice ?? 0n;
+  return total;
 }

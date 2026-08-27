@@ -90,11 +90,11 @@ export function StatusTimeline({ deal }: { deal: Deal }) {
         </div>
       ) : null}
 
-      {/* Step 3 stops here deliberately; proofs and funding are step 4. */}
-      {deal.status === "AWAITING_PAYMENT" ? (
+      {/* Delivery onward is build-order step 5. */}
+      {deal.status === "FUNDED" ? (
         <p className="border-t border-line pt-4 text-meta text-ink-muted">
-          Payment proof submission and middleman verification are not built yet.
-          The deal stops here for now.
+          Both payments are verified. Delivery tracking and release are not
+          built yet, so the deal stops here for now.
         </p>
       ) : null}
     </Card>

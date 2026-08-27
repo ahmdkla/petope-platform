@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import type { PaymentProof, ProofKind, ProofStatus } from '@prisma/client';
+import type {
+  PaymentAsset,
+  PaymentProof,
+  ProofKind,
+  ProofStatus,
+} from '@prisma/client';
 
 /**
  * Payment verification is MANUAL. The platform never connects a wallet, calls
@@ -10,19 +15,47 @@ import type { PaymentProof, ProofKind, ProofStatus } from '@prisma/client';
  * Escrow code must depend on this interface only, never on an implementation,
  * so a future automated verifier is a swap rather than a rewrite.
  */
-export interface PaymentVerifier {
-  submitProof(
-    dealId: string,
-    reference: string,
-    kind: ProofKind,
-  ): Promise<PaymentProof>;
+export type SubmitProofArgs = {
+  dealId: string;
+  /** Who is submitting. Read from the session — never from client input. */
+  submittedById: string;
+  kind: ProofKind;
+  /**
+   * Solscan URL or raw tx signature, exactly as pasted. Stored verbatim and
+   * treated as an opaque human-readable reference: the server NEVER parses,
+   * resolves, or fetches it.
+   */
+  reference: string;
+  /** What the submitter CLAIMS was sent. Not authoritative until confirmed. */
+  claimedAmount?: bigint | null;
+  claimedAsset?: PaymentAsset | null;
+  screenshotUrl?: string | null;
+};
 
-  verify(
-    proofId: string,
-    verifierId: string,
-    decision: 'confirm' | 'reject',
-    note?: string,
-  ): Promise<void>;
+export type VerifyArgs = {
+  proofId: string;
+  /** The middleman personally making the decision. */
+  verifierId: string;
+  decision: 'confirm' | 'reject';
+  note?: string | null;
+};
+
+export type VerifyResult = {
+  proof: PaymentProof;
+  /** True when this decision left the deal fully funded. */
+  dealFunded: boolean;
+};
+
+/**
+ * NOTE ON THE SHAPE: CLAUDE.md sketches this interface as
+ * `submitProof(dealId, reference, kind)`. That sketch cannot record WHO
+ * submitted the proof, which the no-self-verification rule depends on, so both
+ * methods take an argument object instead. The contract is otherwise unchanged:
+ * submission records a claim, verification is a separate human decision.
+ */
+export interface PaymentVerifier {
+  submitProof(args: SubmitProofArgs): Promise<PaymentProof>;
+  verify(args: VerifyArgs): Promise<VerifyResult>;
 }
 
 /** Thrown when someone tries to verify a proof they submitted themselves. */

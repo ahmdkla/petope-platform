@@ -1,5 +1,15 @@
-import type { Deal, DealStatus, TransactionAction } from '@prisma/client';
-import { DEAL_METHOD_RULES, canStillCancel } from './deal-methods';
+import type {
+  Deal,
+  DealStatus,
+  ProofKind,
+  TransactionAction,
+} from '@prisma/client';
+import {
+  DEAL_METHOD_RULES,
+  PROOF_KIND_LABEL,
+  canStillCancel,
+  requiredProofKinds,
+} from './deal-methods';
 
 /**
  * The lifecycle state machine, as configuration.
@@ -18,11 +28,18 @@ export type TransitionId =
   | 'claim'
   | 'lock_terms'
   | 'open_payment_window'
+  | 'mark_funded'
   | 'cancel';
 
 export type TransitionContext = {
   deal: Deal;
   role: ActorRole;
+  /**
+   * Proof kinds already CONFIRMED by a middleman on this deal. Submitted and
+   * rejected proofs are deliberately not represented: a SUBMITTED proof
+   * advances nothing, so the funding guard must not be able to see one.
+   */
+  confirmedProofKinds?: ProofKind[];
 };
 
 export type TransitionRule = {
@@ -105,11 +122,37 @@ export const TRANSITIONS: Record<TransitionId, TransitionRule> = {
     from: ['TERMS_LOCKED'],
     to: 'AWAITING_PAYMENT',
     actors: ['MIDDLEMAN'],
-    action: 'DEAL_FUNDED',
+    action: 'PAYMENT_REQUESTED',
     guard: ({ deal }) =>
       deal.termsLockedAt ? null : 'Terms must be locked before requesting payment.',
     systemMessage: () =>
       'Payment requested. Send funds to the middleman off-platform, then post the Solscan link in this room.',
+  },
+
+  mark_funded: {
+    id: 'mark_funded',
+    label: 'Mark as funded',
+    description:
+      'Records that every required payment has been personally verified. Only available once each required proof is confirmed.',
+    from: ['AWAITING_PAYMENT'],
+    to: 'FUNDED',
+    actors: ['MIDDLEMAN'],
+    action: 'DEAL_FUNDED',
+    guard: ({ deal, confirmedProofKinds }) => {
+      if (!deal.method) return 'No escrow method is set on this deal.';
+      const confirmed = confirmedProofKinds ?? [];
+      const missing = requiredProofKinds(deal.method).filter(
+        (k) => !confirmed.includes(k),
+      );
+      if (missing.length > 0) {
+        return `Still waiting on a confirmed proof for: ${missing
+          .map((k) => PROOF_KIND_LABEL[k].toLowerCase())
+          .join(' and ')}.`;
+      }
+      return null;
+    },
+    systemMessage: () =>
+      'All required payments have been verified by the middleman. The deal is funded.',
   },
 
   cancel: {

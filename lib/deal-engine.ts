@@ -1,4 +1,4 @@
-import type { Deal, Prisma } from '@prisma/client';
+import type { Deal, Prisma, ProofKind } from '@prisma/client';
 import { db } from './db';
 import { assertDealParticipant } from './deal-access';
 import type { CurrentUser } from './session';
@@ -38,7 +38,11 @@ export async function applyTransition(
 
   const role: ActorRole = access.role;
 
-  const check = checkTransition(transitionId, { deal, role });
+  // Only CONFIRMED proofs are loaded. A SUBMITTED proof must be invisible to
+  // the guards — submission advances nothing.
+  const confirmedProofKinds = await loadConfirmedProofKinds(dealId);
+
+  const check = checkTransition(transitionId, { deal, role, confirmedProofKinds });
   if (!check.ok) return { ok: false, error: check.error };
   const { rule } = check;
 
@@ -49,7 +53,11 @@ export async function applyTransition(
     updated = await db.$transaction(async (tx) => {
     // Re-read inside the transaction so two concurrent claims cannot both win.
     const fresh = await tx.deal.findUniqueOrThrow({ where: { id: dealId } });
-    const recheck = checkTransition(transitionId, { deal: fresh, role });
+    const recheck = checkTransition(transitionId, {
+      deal: fresh,
+      role,
+      confirmedProofKinds,
+    });
     if (!recheck.ok) throw new TransitionConflict(recheck.error);
 
     const next = await tx.deal.update({
@@ -81,7 +89,7 @@ export async function applyTransition(
         dealId,
         authorId: null, // system bot
         kind: 'SYSTEM',
-        body: rule.systemMessage({ deal: next, role }),
+        body: rule.systemMessage({ deal: next, role, confirmedProofKinds }),
       },
     });
 
@@ -98,6 +106,16 @@ export async function applyTransition(
 }
 
 class TransitionConflict extends Error {}
+
+/** Distinct kinds with at least one CONFIRMED proof on this deal. */
+export async function loadConfirmedProofKinds(dealId: string): Promise<ProofKind[]> {
+  const rows = await db.paymentProof.findMany({
+    where: { dealId, status: 'CONFIRMED' },
+    select: { kind: true },
+    distinct: ['kind'],
+  });
+  return rows.map((r) => r.kind);
+}
 
 /**
  * Records a party's confirmation of the escrow method.
