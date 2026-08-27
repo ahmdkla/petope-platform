@@ -383,76 +383,141 @@ npx prisma studio        # inspect DB
 
 ## Design Direction
 
-This is a **financial trust product**. People hand over real money and private
-credentials on the strength of how credible it looks. It should feel like a
-trading terminal or a bank's back office — dense, calm, boring in the way
-professional tools are boring. It should not feel like a landing page.
+**Replaces the previous version entirely.** The old direction aimed at
+"trading terminal, boring like professional tools." That was wrong for this
+audience. EXSAVERSE users are web3 traders who live in Discord — the product
+should feel like somewhere they want to be, not a spreadsheet.
 
-Reference points: Linear, Stripe Dashboard, Vercel, GitHub, Discord itself.
-Anti-reference: template SaaS marketing pages.
+Target: a marketplace with **character and energy** that still reads as
+trustworthy enough to move money through.
 
-### Banned outright
-Do not use any of these. If a design instinct produces one, it is wrong.
+**Reference points:** Magic Eden, Blur, Tensor, Discord, Figma, Raycast, Arc.
+**Anti-reference:** generic AI-generated SaaS landing pages — and equally,
+austere enterprise dashboards. Avoid both extremes.
 
-- **Gradients.** No gradient backgrounds, buttons, borders, or text. Especially
-  no purple-to-blue, no "mesh gradient" blobs. Flat colour only.
-- **Emoji in the UI.** Not in headings, buttons, empty states, nav, or section
-  labels. Use icons (lucide-react) or nothing. Emoji in user-written content is
-  fine — that is the user's text, not ours.
-- **Glassmorphism** — no `backdrop-blur` frosted panels.
-- **Decorative shadows.** Shadows indicate elevation on overlays only (modals,
-  dropdowns, popovers). Cards do not float.
-- **Large border radii.** Max `rounded-md` (6px). No pill-shaped cards.
-- **Centered marketing layouts** on application pages. Content is left-aligned
-  and starts at the top.
-- **Hero sections, feature grids with icon circles, testimonial cards,
-  "Trusted by" strips** — none of this belongs in a logged-in application.
-- **Motivational or salesy microcopy.** No "Let's get started!", no "You're all
-  set 🎉", no exclamation marks. State what happened.
-- **Full-width max-w-7xl centered containers** everywhere. Dense tables and
-  queues should use the available width.
+---
 
-### What to do instead
+### Readability comes first
+The current build fails on this. Fix before anything else.
 
-**Colour.** Dark theme, since the audience lives in Discord. One neutral ramp
-(zinc or neutral) doing 90% of the work, plus a small set of semantic colours
-used *only* to carry meaning:
-- Deal states get colour because state is the most important thing on screen
-- Success/danger for confirm/reject actions
-- Nothing else is coloured. A button is not coloured because it is a button.
+**Type scale — everything moves up.**
+- Body text: **15px minimum**. Never 12px or 13px anywhere.
+- Table cells and form inputs: 15px
+- Secondary/meta text: 14px floor
+- Section headings: 20–24px
+- Page titles: 28–36px, and they may be bold
+- Numbers in tables: 15–16px, tabular figures
 
-Avoid indigo/violet as the accent — it is the Tailwind default and reads as
-"untouched template". Given the existing brand, a muted amber/gold works and
-matches the Discord server's identity.
+**Contrast — no more grey-on-grey.**
+- Primary text on dark: near-white (`zinc-100`), not `zinc-400`
+- Secondary text: `zinc-300` minimum, never below `zinc-400`
+- Every text/background pair must clear **WCAG AA (4.5:1)**. Check it, don't
+  eyeball it.
+- Muted text is a rare accent, not the default
 
-**Typography.** One sans for UI (Inter, or the Geist that ships with the
-scaffold). One mono (Geist Mono, JetBrains Mono) — used for every amount,
-transaction reference, deal reference, wallet address, and timestamp. Money in
-a proportional font looks amateur and misaligns in tables.
+**Density — loosen up.**
+- Table rows: **48–52px**, not 36px
+- Card padding: 20–24px
+- Section spacing: 32–48px between blocks
+- Form fields: 44px tall minimum
 
-Size range stays narrow: 12/13/14/16px covers the whole app. Hierarchy comes
-from weight and colour, not size jumps. No text larger than 24px anywhere.
+---
 
-**Density.** Tighter than default Tailwind. Table rows ~36px, not 56px. A
-middleman reviewing a queue wants twenty rows visible, not six. Generous
-whitespace is a marketing-site value; this is a work tool.
+### Both themes, user-switchable
+Ship **dark and light**, with a toggle in the top bar, persisted per user
+(localStorage plus the user record once profiles support it). Dark is the
+default — the audience skews that way.
 
-**Structure.** Persistent left sidebar for navigation (mirrors Discord's
-model and is what the users already know). Main content area. Deal rooms get a
-three-pane layout: nav / conversation / deal state panel.
+Use CSS variables so a theme swap never means rewriting components. Both
+themes must pass the same contrast rules; a light theme with washed-out grey
+text is the same failure in reverse.
 
-**Empty states.** One line of plain text explaining what will appear here.
-No illustration, no emoji, no encouragement.
+---
 
-**Numbers.** Right-align in tables. Always show the asset. Always show the
-resolved total next to per-unit pricing.
+### Colour — use it
+The old rule ("nothing is coloured unless it carries meaning") produced
+something lifeless. Colour is allowed to make the product feel alive.
+
+**Accent:** amber/gold as the brand anchor (matches EXSAVERSE), used
+confidently — primary buttons, active nav, focus rings, key highlights. Not
+rationed to a single badge.
+
+**Semantic colours** stay meaningful and consistent:
+- Deal states each get their own colour, used everywhere that state appears
+- Green for confirmed/completed, red for rejected/disputed, amber for pending
+- BUY and SELL listings visually distinguishable at a glance
+
+**Surfaces:** at least three background levels (page → card → raised) so
+sections separate without relying on hairline borders. Subtle tints are fine —
+a card can carry a faint colour wash tied to its state.
+
+**Still banned:** purple-to-blue gradients, mesh gradient blobs, rainbow
+palettes. Flat colour and *subtle* single-hue gradients are fine; the banned
+thing is the specific AI-template look, not gradients as a category.
+
+---
+
+### Structure and depth
+- **Cards are encouraged.** Group related content into distinct surfaces
+  rather than floating everything on one flat plane.
+- **Borders and elevation both allowed.** Cards may carry a soft shadow.
+  Overlays carry a stronger one.
+- **Border radius up to `rounded-lg`** (8px), `rounded-xl` (12px) for large
+  cards. Still no pill-shaped containers.
+- **Icons throughout** (lucide-react) — nav, buttons, empty states, status
+  indicators. They aid scanning.
+- **Motion is allowed, sparingly:** hover transitions, state changes, page
+  transitions. 150–250ms. No scroll-triggered reveals, no parallax, no
+  animation libraries.
+
+---
+
+### Making it feel like a marketplace, not a form
+- **Listing cards** should look like things you'd want to buy — clear item
+  name, prominent price, chain badge, spot-type badge, seller identity.
+  Card grid, not a bare table.
+- **Deal states** get colour-coded pills, not plain text.
+- **Middleman profiles** get avatars and visible trust signals — vouch count,
+  trades secured, verified badge — presented with some weight.
+- **Empty states** get an icon and a helpful line, not one grey sentence.
+- **Dashboard** shows activity: recent listings, your open deals, recent
+  completed sales. Something is always happening.
+
+---
+
+### Still banned (the actual AI tells)
+These are what make a site read as AI-generated. Everything above is
+permitted; these are not:
+
+- Purple-to-blue gradients, mesh gradient blobs
+- Emoji in UI chrome — headings, buttons, nav, labels. (User-written content
+  is theirs; icons are fine.)
+- Glassmorphism / `backdrop-blur` frosted panels
+- Hero sections with giant centered type on **application** pages (a marketing
+  landing page for signed-out visitors is a different thing and may have one)
+- Feature grids with icon circles, testimonial cards, "Trusted by" strips
+- Motivational microcopy — "Let's get started!", "You're all set", exclamation
+  marks in system messages
+- Indigo/violet as the primary accent (Tailwind default, reads as untouched
+  template)
+- Text above 36px in the application
+- Scroll-triggered animation, parallax, GSAP
+
+---
+
+### Typography
+- **UI:** one strong sans — Geist, Inter, or similar
+- **Mono:** for amounts, transaction references, deal references, wallet
+  addresses, timestamps. Money in a proportional font misaligns in tables.
+- Weight carries hierarchy: 400 body, 500–600 emphasis, 700 headings
+
+---
 
 ### The test
-Before shipping a screen, ask: *would this look out of place inside Stripe's
-dashboard?* If it would, it is too decorated.
+Would a Discord-native NFT trader find this pleasant to spend time in, and
+would they trust it with $200?
 
-If a design choice cannot be justified by what it helps the user understand or
-do, remove it.
+Both halves matter. Too austere fails the first. Too flashy fails the second.
 
 ## Working Style
 

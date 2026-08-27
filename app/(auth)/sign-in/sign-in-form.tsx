@@ -41,12 +41,12 @@ export function SignInForm({ next }: { next?: string }) {
 
   return (
     <Card>
-      <h1 className="text-lg font-semibold text-ink">Sign in</h1>
-      <p className="mt-1 text-xs text-ink-muted">
+      <h1 className="text-section-lg font-bold tracking-tight text-ink">Sign in</h1>
+      <p className="mt-1.5 text-body text-ink-muted">
         Access your deal rooms and middleman queue.
       </p>
 
-      <form onSubmit={onSubmit} className="mt-5 space-y-3">
+      <form onSubmit={onSubmit} className="mt-6 space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="email">Email</Label>
           <Input id="email" name="email" type="email" required autoComplete="email" />
@@ -70,9 +70,9 @@ export function SignInForm({ next }: { next?: string }) {
         </Button>
       </form>
 
-      <p className="mt-4 text-xs text-ink-muted">
+      <p className="mt-5 text-body text-ink-muted">
         No account?{" "}
-        <Link href="/sign-up" className="text-accent underline underline-offset-2">
+        <Link href="/sign-up" className="font-medium text-accent-text underline underline-offset-2">
           Create one
         </Link>
       </p>

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
-import { DemoBanner } from "@/components/demo-banner";
+import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
+import { Avatar, Badge } from "@/components/ui";
+import { ShieldAlert, BadgeCheck, Clock3, Handshake, MessageSquareQuote } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Middleman roster — EXSAVERSE",
@@ -30,101 +32,108 @@ export default async function MiddlemenPage() {
   });
 
   return (
-    <div className="flex min-h-full flex-col">
-      <DemoBanner />
+    <AppShell>
+      <PageHeader
+        title="Middleman roster"
+        description="This page is the only authoritative list of EXSAVERSE middlemen."
+      />
 
-      <main className="w-full px-6 py-8">
-        <h1 className="text-xl font-semibold text-ink">Middleman roster</h1>
-        <p className="mt-1 max-w-2xl text-xs text-ink-muted">
-          This page is the only authoritative list of EXSAVERSE middlemen.
-        </p>
-
-        <div className="mt-4 max-w-2xl rounded-md border border-warn/30 bg-warn-soft px-3 py-2 text-xs text-warn">
-          Middlemen never DM you first. If someone contacts you claiming to be
-          staff, they are an impersonator. Verify the exact handle here before
-          sending funds, credentials, or a wallet.
+      <PageBody>
+        <div className="flex max-w-3xl gap-3 rounded-lg border border-warn/25 bg-warn-soft p-4 text-body text-warn">
+          <ShieldAlert aria-hidden className="size-5 shrink-0" strokeWidth={1.75} />
+          <span>
+            Middlemen never DM you first. If someone contacts you claiming to be
+            staff, they are an impersonator. Verify the exact handle here before
+            sending funds, credentials, or a wallet.
+          </span>
         </div>
 
         {middlemen.length === 0 ? (
-          <p className="mt-8 text-xs text-ink-muted">
+          <p className="mt-6 text-body text-ink-muted">
             No middlemen are listed yet.
           </p>
         ) : (
-          <div className="mt-6 overflow-x-auto rounded-md border border-line">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-line bg-panel text-left">
-                  <Th>Handle</Th>
-                  <Th>Role</Th>
-                  <Th>Working hours</Th>
-                  <Th align="right">Trades secured</Th>
-                  <Th align="right">Vouches</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {middlemen.map((m) => (
-                  <tr
-                    key={m.id}
-                    className="h-row border-b border-line last:border-0 hover:bg-panel"
-                  >
-                    <td className="px-3">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-ink">
-                          {m.displayName ?? "unnamed"}
-                        </span>
-                        {m.isVerifiedMm ? (
-                          <span className="rounded-md border border-accent/40 bg-accent-soft px-1.5 py-0.5 text-2xs font-medium text-accent">
-                            Verified
-                          </span>
-                        ) : (
-                          <span className="rounded-md border border-line bg-raised px-1.5 py-0.5 text-2xs text-ink-faint">
-                            Unverified
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-3 text-xs text-ink-muted">
+          <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            {middlemen.map((m) => (
+              <article
+                key={m.id}
+                className="rounded-xl border border-line bg-card p-6 shadow-card transition-colors duration-200 hover:border-line-strong"
+              >
+                <div className="flex items-start gap-4">
+                  <Avatar
+                    name={m.displayName ?? "??"}
+                    seed={m.id}
+                    size="lg"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <h2 className="truncate font-mono text-section font-semibold text-ink">
+                      {m.displayName ?? "unnamed"}
+                    </h2>
+                    <p className="mt-1 text-meta text-ink-muted">
                       {m.role === "MAIN_MIDDLEMAN" ? "Main middleman" : "Middleman"}
-                    </td>
-                    <td className="px-3 font-mono text-xs text-ink-muted">
-                      {m.workingHoursUtc ?? "not published"}
-                    </td>
-                    <td className="px-3 text-right font-mono tnum text-ink">
-                      {m.tradesSecured.toLocaleString("en-US")}
-                    </td>
-                    <td className="px-3 text-right font-mono tnum text-ink-muted">
-                      {m._count.vouchesReceived.toLocaleString("en-US")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </p>
+                  </div>
+                  {m.isVerifiedMm ? (
+                    <Badge tone="accent">
+                      <BadgeCheck aria-hidden className="size-3.5" strokeWidth={2} />
+                      Verified
+                    </Badge>
+                  ) : (
+                    <Badge tone="neutral">Unverified</Badge>
+                  )}
+                </div>
+
+                <dl className="mt-5 grid grid-cols-2 gap-3">
+                  <Trust
+                    icon={Handshake}
+                    label="Trades secured"
+                    value={m.tradesSecured.toLocaleString("en-US")}
+                  />
+                  <Trust
+                    icon={MessageSquareQuote}
+                    label="Vouches"
+                    value={m._count.vouchesReceived.toLocaleString("en-US")}
+                  />
+                </dl>
+
+                <p className="mt-4 flex items-center gap-2 border-t border-line pt-4 text-meta text-ink-muted">
+                  <Clock3 aria-hidden className="size-4 shrink-0 text-ink-faint" strokeWidth={1.75} />
+                  <span className="font-mono">
+                    {m.workingHoursUtc ?? "hours not published"}
+                  </span>
+                </p>
+              </article>
+            ))}
           </div>
         )}
 
-        <p className="mt-3 max-w-2xl text-2xs text-ink-faint">
+        <p className="mt-6 max-w-3xl text-meta text-ink-faint">
           Vouch counts are the number of published testimonials tied to a
           completed deal. No aggregate rating is shown.
         </p>
-      </main>
-    </div>
+      </PageBody>
+    </AppShell>
   );
 }
 
-function Th({
-  children,
-  align = "left",
+function Trust({
+  icon: Icon,
+  label,
+  value,
 }: {
-  children: React.ReactNode;
-  align?: "left" | "right";
+  icon: typeof Handshake;
+  label: string;
+  value: string;
 }) {
   return (
-    <th
-      className={`h-8 px-3 text-2xs font-medium uppercase tracking-wide text-ink-faint ${
-        align === "right" ? "text-right" : "text-left"
-      }`}
-    >
-      {children}
-    </th>
+    <div className="rounded-lg border border-line bg-raised px-3 py-2.5">
+      <dt className="flex items-center gap-1.5 text-meta text-ink-faint">
+        <Icon aria-hidden className="size-3.5" strokeWidth={2} />
+        {label}
+      </dt>
+      <dd className="mt-1 font-mono tnum text-section font-semibold text-ink">
+        {value}
+      </dd>
+    </div>
   );
 }

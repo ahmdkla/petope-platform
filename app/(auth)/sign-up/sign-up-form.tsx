@@ -58,12 +58,12 @@ export function SignUpForm() {
 
   return (
     <Card>
-      <h1 className="text-lg font-semibold text-ink">Create account</h1>
-      <p className="mt-1 text-xs text-ink-muted">
+      <h1 className="text-section-lg font-bold tracking-tight text-ink">Create account</h1>
+      <p className="mt-1.5 text-body text-ink-muted">
         Buyers, sellers and middlemen use the same account.
       </p>
 
-      <form onSubmit={onSubmit} className="mt-5 space-y-3">
+      <form onSubmit={onSubmit} className="mt-6 space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="displayName">Display name</Label>
           <Input id="displayName" name="displayName" required autoComplete="nickname" />
@@ -84,20 +84,20 @@ export function SignUpForm() {
             minLength={MIN_PASSWORD}
             autoComplete="new-password"
           />
-          <p className="text-2xs text-ink-faint">
+          <p className="text-meta text-ink-faint">
             At least {MIN_PASSWORD} characters.
           </p>
         </div>
 
-        <label className="flex items-start gap-2 pt-1 text-xs text-ink-muted">
+        <label className="flex cursor-pointer items-start gap-2.5 pt-1 text-body text-ink-muted">
           <input
             type="checkbox"
             name="terms"
-            className="mt-0.5 size-3.5 rounded-md border-line bg-raised accent-accent"
+            className="mt-1 size-4 cursor-pointer rounded-md border-line bg-raised accent-accent"
           />
           <span>
             I accept the{" "}
-            <Link href="/guidelines" className="text-accent underline underline-offset-2">
+            <Link href="/guidelines" className="font-medium text-accent-text underline underline-offset-2">
               guidelines and privacy policy
             </Link>
             .
@@ -111,9 +111,9 @@ export function SignUpForm() {
         </Button>
       </form>
 
-      <p className="mt-4 text-xs text-ink-muted">
+      <p className="mt-5 text-body text-ink-muted">
         Already registered?{" "}
-        <Link href="/sign-in" className="text-accent underline underline-offset-2">
+        <Link href="/sign-in" className="font-medium text-accent-text underline underline-offset-2">
           Sign in
         </Link>
       </p>

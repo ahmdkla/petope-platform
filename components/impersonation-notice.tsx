@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ShieldAlert } from "lucide-react";
 
 /**
  * Impersonation is the top threat (CLAUDE.md). This is the standing warning the
@@ -6,16 +7,19 @@ import Link from "next/link";
  */
 export function ImpersonationNotice() {
   return (
-    <p className="rounded-md border border-line bg-panel px-3 py-2 text-xs text-ink-muted">
+    <p className="flex gap-2.5 rounded-lg border border-line bg-card p-4 text-meta text-ink-muted shadow-card">
+      <ShieldAlert aria-hidden className="size-[18px] shrink-0 text-warn" strokeWidth={1.75} />
+      <span>
       Middlemen never DM you first. Anyone who does is an impersonator. Check
       every middleman against the{" "}
       <Link
         href="/middlemen"
-        className="text-accent underline underline-offset-2"
+        className="font-medium text-accent-text underline underline-offset-2"
       >
         official roster
       </Link>{" "}
       before sending anything.
+      </span>
     </p>
   );
 }

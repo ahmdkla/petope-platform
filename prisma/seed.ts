@@ -11,6 +11,14 @@ import { db } from '../lib/db';
 
 const PASSWORD = 'exsaverse-demo-2026';
 
+/**
+ * Money is stored in the asset's SMALLEST UNIT, never as a display number.
+ * USDC/USDT have 6 decimals, SOL has 9. Writing `1500n` for "$15" would store
+ * $0.0015 — these helpers exist so that mistake is impossible here.
+ */
+const usd = (n: number) => BigInt(Math.round(n * 1_000_000));
+const sol = (n: number) => BigInt(Math.round(n * 1_000_000_000));
+
 type Seed = {
   email: string;
   displayName: string;
@@ -60,8 +68,8 @@ async function main() {
   // Admin-tunable values — never hardcoded in logic.
   await db.adminSetting.createMany({
     data: [
-      { key: 'collateral.minimum', value: { amount: 500, asset: 'USDC', note: 'smallest unit; $5.00' }, description: 'Minimum seller collateral, all methods.', updatedById: ids.admin },
-      { key: 'mmFee.default', value: { type: 'percentage', percent: 5, minimum: 100, asset: 'USDC' }, description: 'Default MM fee. Structure still under review.', updatedById: ids.admin },
+      { key: 'collateral.minimum', value: { amount: 5_000_000, asset: 'USDC', note: 'smallest unit = $5.00 USDC' }, description: 'Minimum seller collateral, all methods.', updatedById: ids.admin },
+      { key: 'mmFee.default', value: { type: 'percentage', percent: 5, minimum: 1_000_000, asset: 'USDC' }, description: 'Default MM fee. Structure still under review.', updatedById: ids.admin },
       { key: 'timers.overrides', value: {}, description: 'Per-method release timer overrides. Empty = use deal-method config.', updatedById: ids.admin },
     ],
   });
@@ -69,10 +77,10 @@ async function main() {
 
   await db.listing.createMany({
     data: [
-      { side: 'SELL', authorId: ids.seller_one, item: 'Fabled Genesis', chain: 'Solana', price: 1500n, priceType: 'FOR_EACH', payment: 'USDC', specific: 'GTD', type: 'WALLET_SUBMIT', quantity: 3, quantityRemaining: 3, collateral: 700n, acceptsOffers: true },
-      { side: 'SELL', authorId: ids.seller_one, item: 'Northlake', chain: 'Base', price: 4000n, priceType: 'FOR_ALL', payment: 'USDT', specific: 'FCFS', type: 'MINT', quantity: 5, quantityRemaining: 2, collateral: 1200n },
-      { side: 'BUY', authorId: ids.buyer_one, item: 'Aster Pass', chain: 'Ethereum', price: 2n, priceType: 'FOR_EACH', payment: 'SOL', specific: 'GTD', type: 'ANY', quantity: 2, quantityRemaining: 2, acceptsOffers: true },
-      { side: 'SELL', authorId: ids.seller_one, item: 'Reverie', chain: 'Robinhood', price: 900n, priceType: 'FOR_EACH', payment: 'USDC', specific: 'GTD', type: 'TOKEN_TRANSFER', quantity: 1, quantityRemaining: 0, status: 'FULFILLED' },
+      { side: 'SELL', authorId: ids.seller_one, item: 'Fabled Genesis', chain: 'Solana', price: usd(15), priceType: 'FOR_EACH', payment: 'USDC', specific: 'GTD', type: 'WALLET_SUBMIT', quantity: 3, quantityRemaining: 3, collateral: usd(7), acceptsOffers: true },
+      { side: 'SELL', authorId: ids.seller_one, item: 'Northlake', chain: 'Base', price: usd(40), priceType: 'FOR_ALL', payment: 'USDT', specific: 'FCFS', type: 'MINT', quantity: 5, quantityRemaining: 2, collateral: usd(12), acceptsOffers: true },
+      { side: 'BUY', authorId: ids.buyer_one, item: 'Aster Pass', chain: 'Ethereum', price: sol(0.25), priceType: 'FOR_EACH', payment: 'SOL', specific: 'GTD', type: 'ANY', quantity: 2, quantityRemaining: 2, acceptsOffers: true },
+      { side: 'SELL', authorId: ids.seller_one, item: 'Reverie', chain: 'Robinhood', price: usd(9), priceType: 'FOR_EACH', payment: 'USDC', specific: 'GTD', type: 'TOKEN_TRANSFER', quantity: 1, quantityRemaining: 0, status: 'FULFILLED' },
     ],
   });
   console.log('  4 listings');
@@ -96,8 +104,8 @@ async function main() {
         status: 'COMPLETED',
         projectName: d.ref.split('-').pop() ?? 'Project',
         chain: 'Solana',
-        dealAmount: 1500n,
-        mmFee: 75n,
+        dealAmount: usd(45),
+        mmFee: usd(2.25),
         asset: 'USDC',
         quantity: 1,
         specific: 'GTD',
@@ -109,7 +117,7 @@ async function main() {
     });
 
     await db.transactionLog.create({
-      data: { dealId: deal.id, actorId: d.mm, action: 'FUNDS_RELEASED', amount: 1500n, asset: 'USDC', fromStatus: 'AWAITING_CONFIRMATION', toStatus: 'COMPLETED' },
+      data: { dealId: deal.id, actorId: d.mm, action: 'FUNDS_RELEASED', amount: usd(45), asset: 'USDC', fromStatus: 'AWAITING_CONFIRMATION', toStatus: 'COMPLETED' },
     });
 
     await db.vouch.create({
