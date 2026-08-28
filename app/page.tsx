@@ -9,6 +9,7 @@ import { DealStatusPill } from "@/components/deal-status-pill";
 import { formatMoney, resolveTotal } from "@/lib/money";
 import { ImpersonationNotice } from "@/components/impersonation-notice";
 import { currentShiftWindow, isOnShift } from "@/lib/shifts";
+import { shortReference } from "@/lib/reference";
 
 export const metadata: Metadata = { title: "Overview — EXSAVERSE" };
 export const dynamic = "force-dynamic";
@@ -49,7 +50,11 @@ export default async function HomePage() {
         where: { status: "COMPLETED", isTest: false },
         orderBy: { completedAt: "desc" },
         take: 5,
-        include: { middleman: { select: { id: true, displayName: true } } },
+        include: {
+          middleman: {
+            select: { id: true, displayName: true, workingHoursUtc: true },
+          },
+        },
       }),
     ]);
 
@@ -78,10 +83,14 @@ export default async function HomePage() {
           <Stat icon={CheckCircle2} label="Deals completed" value={completedCount} tone="ok" />
         </div>
 
+        {/* `min-w-0` on both columns: below `lg` these share one implicit `auto`
+            track, whose minimum is the widest item's min-content. Without it a
+            single wide row inside either column widens the track past the
+            viewport and takes the whole page into horizontal scroll. */}
         <div className="mt-10 grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <div className="space-y-8">
+          <div className="min-w-0 space-y-8">
             <section>
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                 <SectionTitle>Latest listings</SectionTitle>
                 <Link
                   href="/listings"
@@ -93,7 +102,18 @@ export default async function HomePage() {
               </div>
 
               {recent.length === 0 ? (
-                <EmptyState icon={Store} message="No listings have been posted yet." />
+                <EmptyState
+                  icon={Store}
+                  message="Nothing is on the marketplace yet. The newest buy and sell listings show up here as they are posted."
+                  action={
+                    <Link
+                      href="/listings"
+                      className="text-body font-medium text-accent-text underline underline-offset-2"
+                    >
+                      Post the first listing
+                    </Link>
+                  }
+                />
               ) : (
                 <ul className="grid gap-3 sm:grid-cols-2">
                   {recent.map((l) => (
@@ -128,7 +148,7 @@ export default async function HomePage() {
 
             {user ? (
               <section>
-                <div className="mb-4 flex items-center justify-between">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
                   <SectionTitle>Your open deals</SectionTitle>
                   <Link
                     href="/deals"
@@ -150,11 +170,14 @@ export default async function HomePage() {
                       <li key={d.id}>
                         <Link
                           href={`/deals/${d.id}`}
-                          className="flex h-row items-center justify-between gap-4 px-4 transition-colors duration-200 hover:bg-raised"
+                          className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 transition-colors duration-200 hover:bg-raised sm:h-row sm:flex-nowrap sm:py-0"
                         >
                           <span className="flex min-w-0 items-center gap-3">
-                            <span className="truncate font-mono text-meta text-ink-muted">
-                              {d.reference}
+                            <span
+                              title={d.reference}
+                              className="truncate font-mono text-meta text-ink-muted"
+                            >
+                              {shortReference(d.reference)}
                             </span>
                             <span className="truncate text-body text-ink">
                               {d.projectName}
@@ -175,7 +198,7 @@ export default async function HomePage() {
             ) : null}
           </div>
 
-          <aside className="space-y-6">
+          <aside className="min-w-0 space-y-6">
             <section>
               <SectionTitle className="mb-4">Recent sales</SectionTitle>
               {sales.length === 0 ? (
@@ -191,6 +214,11 @@ export default async function HomePage() {
                         name={d.middleman?.displayName ?? "??"}
                         seed={d.middlemanId ?? d.id}
                         size="sm"
+                        onShift={
+                          d.middleman
+                            ? isOnShift(d.middleman.workingHoursUtc)
+                            : undefined
+                        }
                       />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-body text-ink">

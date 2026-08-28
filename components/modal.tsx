@@ -32,8 +32,10 @@ export function Modal({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // Below `sm` the panel is a bottom sheet: anchored to the bottom edge, full
+  // width, within thumb reach. From `sm` up it is a centred dialog.
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] flex items-end justify-center sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden />
       <div
         ref={panel}
@@ -41,26 +43,33 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className={`relative z-10 flex max-h-[calc(100dvh-4rem)] w-full flex-col rounded-xl border border-line bg-card shadow-overlay outline-none ${
-          size === "lg" ? "max-w-3xl" : "max-w-md"
+        className={`relative z-10 flex max-h-[92dvh] w-full flex-col rounded-t-xl border border-line bg-card shadow-overlay outline-none sm:max-h-[calc(100dvh-4rem)] sm:rounded-xl ${
+          size === "lg" ? "sm:max-w-3xl" : "sm:max-w-md"
         }`}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-line px-6 py-4">
+        {/* A grab handle reads as "drag me down" on a phone and is invisible
+            from `sm` up, where the dialog is centred instead. */}
+        <span
+          aria-hidden
+          className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-line-strong sm:hidden"
+        />
+
+        <div className="flex shrink-0 items-center justify-between border-b border-line px-4 py-4 sm:px-6">
           <h2 className="text-section font-semibold tracking-tight text-ink">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close dialog"
-            className="grid size-9 cursor-pointer place-items-center rounded-md text-ink-muted transition-colors duration-200 hover:bg-raised hover:text-ink"
+            className="grid size-11 cursor-pointer place-items-center rounded-md text-ink-muted transition-colors duration-200 hover:bg-raised hover:text-ink sm:size-9"
           >
             <X aria-hidden className="size-[18px]" strokeWidth={2} />
           </button>
         </div>
 
-        <div className="overflow-y-auto px-6 py-5 text-left">{children}</div>
+        <div className="overflow-y-auto px-4 py-5 text-left sm:px-6">{children}</div>
 
         {footer ? (
-          <div className="flex shrink-0 justify-end gap-3 border-t border-line px-6 py-4">
+          <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-line px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:px-6 sm:pb-4">
             {footer}
           </div>
         ) : null}

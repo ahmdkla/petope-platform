@@ -21,9 +21,9 @@ async function user(email: string): Promise<CurrentUser> {
 async function main() {
   const run = Date.now().toString(36);
   const mm = await user('akla@exsaverse.demo');
-  const member = await user('buyer@exsaverse.demo');
-  const buyer = await user('buyer@exsaverse.demo');
-  const seller = await user('seller@exsaverse.demo');
+  const member = await user('kairo@exsaverse.demo');
+  const buyer = await user('kairo@exsaverse.demo');
+  const seller = await user('dax@exsaverse.demo');
 
   console.log('\nACCESS');
   const byMember = await createMintEventAsUser(member, {

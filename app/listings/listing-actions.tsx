@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import type { ListingSide, ListingStatus, PaymentAsset } from "@prisma/client";
 import { quickDeal, delistListing, makeOffer } from "./actions";
 import { Button, Input, Label, Textarea, FormError, Hint } from "@/components/ui";
-import { parseAmount } from "@/lib/money";
+import { ASSET_LABEL, parseAmount } from "@/lib/money";
 import { Modal } from "@/components/modal";
 
 export function ListingActions({
@@ -50,7 +50,7 @@ export function ListingActions({
   }
 
   return (
-    <div className="flex items-center justify-end gap-2">
+    <div className="flex flex-wrap items-center justify-end gap-2">
       {error ? (
         <span role="alert" className="text-meta text-danger">
           {error}
@@ -176,7 +176,7 @@ function OfferDialog({
     e.preventDefault();
     const parsed = parseAmount(amount, asset);
     if (parsed === null || parsed <= 0n) {
-      setError(`Enter an amount in ${asset}.`);
+      setError(`Enter an amount in ${ASSET_LABEL[asset]}.`);
       return;
     }
     setError(null);
@@ -217,9 +217,12 @@ function OfferDialog({
               onChange={(e) => setAmount(e.target.value)}
               autoFocus
             />
-            <span className="font-mono text-body text-ink-muted">{asset}</span>
+            <span className="font-mono text-body text-ink-muted">{ASSET_LABEL[asset]}</span>
           </div>
-          <Hint>Settled in {asset} on Solana, regardless of the project chain.</Hint>
+          <Hint>
+            Settled in {ASSET_LABEL[asset]} on Solana, regardless of the project
+            chain.
+          </Hint>
         </div>
 
         <div className="space-y-1.5">

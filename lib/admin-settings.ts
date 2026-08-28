@@ -60,9 +60,11 @@ export async function getMmFeeConfig(): Promise<MmFeeConfig> {
 }
 
 /** Minimum seller collateral. Never a hardcoded value — see CLAUDE.md. */
+const PAYMENT_ASSETS: PaymentAsset[] = ['SOL', 'STABLE', 'USDC', 'USDT'];
+
 export async function getCollateralMinimum(): Promise<{
   amount: bigint;
-  asset: string;
+  asset: PaymentAsset;
 } | null> {
   const row = await db.adminSetting.findUnique({
     where: { key: 'collateral.minimum' },
@@ -70,7 +72,12 @@ export async function getCollateralMinimum(): Promise<{
   if (!row) return null;
   const v = row.value as { amount?: number; asset?: string };
   if (typeof v.amount !== 'number' || !v.asset) return null;
-  return { amount: BigInt(v.amount), asset: v.asset };
+  // The value is JSON, so the asset arrives as a bare string. Narrowing it here
+  // rather than casting means a mistyped setting is ignored loudly at the read
+  // instead of reaching the UI as an unrecognised label.
+  const asset = PAYMENT_ASSETS.find((a) => a === v.asset);
+  if (!asset) return null;
+  return { amount: BigInt(v.amount), asset };
 }
 
 const MAX_CONCURRENT_DEALS_DEFAULT = 7;

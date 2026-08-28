@@ -17,7 +17,7 @@ import {
   Select,
 } from "@/components/ui";
 import { DEAL_METHOD_RULES, SELECTABLE_METHODS } from "@/lib/deal-methods";
-import { parseAmount, formatAmount, formatMoney } from "@/lib/money";
+import { ASSET_LABEL, parseAmount, formatAmount, formatMoney } from "@/lib/money";
 import { computeMmFee, type MmFeeConfig } from "@/lib/mm-fee";
 import type { ActorRole } from "@/lib/deal-transitions";
 
@@ -191,12 +191,12 @@ function ProposeTerms({
 
     const col = collateral.trim() === "" ? null : parseAmount(collateral, deal.asset);
     if (collateral.trim() !== "" && col === null) {
-      setError(`Collateral must be an amount in ${deal.asset}.`);
+      setError(`Collateral must be an amount in ${ASSET_LABEL[deal.asset]}.`);
       return;
     }
     const mp = mintPrice.trim() === "" ? null : parseAmount(mintPrice, deal.asset);
     if (mintPrice.trim() !== "" && mp === null) {
-      setError(`Mint price must be an amount in ${deal.asset}.`);
+      setError(`Mint price must be an amount in ${ASSET_LABEL[deal.asset]}.`);
       return;
     }
 
@@ -280,7 +280,7 @@ function ProposeTerms({
           </output>
           <Hint>
             {preview.atFloor
-              ? `Minimum fee for ${deal.asset}. ${feeConfig.percentBasisPoints / 100}% of ${formatMoney(preview.base, deal.asset)} would be lower.`
+              ? `Minimum fee for ${ASSET_LABEL[deal.asset]}. ${feeConfig.percentBasisPoints / 100}% of ${formatMoney(preview.base, deal.asset)} would be lower.`
               : `${feeConfig.percentBasisPoints / 100}% of ${formatMoney(preview.base, deal.asset)} (deal amount plus collateral). Paid by the buyer on top.`}
           </Hint>
         </div>

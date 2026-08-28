@@ -1,9 +1,17 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
-import { Avatar, Badge } from "@/components/ui";
-import { ShieldAlert, BadgeCheck, Clock3, Handshake, MessageSquareQuote } from "lucide-react";
-import { shiftStatus, currentShiftWindow } from "@/lib/shifts";
+import Link from "next/link";
+import { Avatar, Badge, EmptyState } from "@/components/ui";
+import {
+  ShieldAlert,
+  ShieldCheck,
+  BadgeCheck,
+  Clock3,
+  Handshake,
+  MessageSquareQuote,
+} from "lucide-react";
+import { shiftStatus, currentShiftWindow, isOnShift } from "@/lib/shifts";
 
 export const metadata: Metadata = {
   title: "Middleman roster — EXSAVERSE",
@@ -76,13 +84,28 @@ export default async function MiddlemenPage({
         </div>
 
         {shown.length === 0 ? (
-          <p className="mt-6 text-body text-ink-muted">
-            {onShiftOnly
-              ? `Nobody is covering the ${shift.label} shift right now.`
-              : "No middlemen are listed yet."}
-          </p>
+          <div className="mt-6">
+            <EmptyState
+              icon={ShieldCheck}
+              message={
+                onShiftOnly
+                  ? `Nobody is covering the ${shift.label} shift right now. Every verified middleman is still listed — clear the filter to see who is on later, or open a deal anyway and the next one on shift will claim it.`
+                  : "No middlemen are listed yet. Verified middlemen appear here with their vouch count, trades secured, and published hours."
+              }
+              action={
+                onShiftOnly ? (
+                  <Link
+                    href="/middlemen"
+                    className="text-body font-medium text-accent-text underline underline-offset-2"
+                  >
+                    Show all middlemen
+                  </Link>
+                ) : null
+              }
+            />
+          </div>
         ) : (
-          <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-6 grid gap-5 grid-cols-[repeat(auto-fill,minmax(min(100%,22rem),1fr))]">
             {shown.map((m) => (
               <article
                 key={m.id}
@@ -93,6 +116,7 @@ export default async function MiddlemenPage({
                     name={m.displayName ?? "??"}
                     seed={m.id}
                     size="lg"
+                    onShift={isOnShift(m.workingHoursUtc)}
                   />
                   <div className="min-w-0 flex-1">
                     <h2 className="truncate font-mono text-section font-semibold text-ink">

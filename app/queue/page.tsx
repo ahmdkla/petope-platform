@@ -7,6 +7,7 @@ import { getCurrentUser, isMiddleman } from "@/lib/session";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { Avatar, Badge, EmptyState } from "@/components/ui";
 import { DealStatusPill } from "@/components/deal-status-pill";
+import { DealReference } from "@/components/deal-reference";
 import { formatMoney } from "@/lib/money";
 import { DEAL_METHOD_RULES } from "@/lib/deal-methods";
 import { ClaimButton } from "./claim-button";
@@ -58,7 +59,7 @@ export default async function QueuePage({
         description="Unclaimed tickets and the deals assigned to you."
       />
 
-      <div className="border-b border-line px-8">
+      <div className="border-b border-line px-4 sm:px-6 lg:px-8">
         <div role="tablist" aria-label="Queue" className="-mb-px flex gap-1">
           <Tab href="/queue" active={!mine} label="Unclaimed" count={unclaimed.length} />
           <Tab
@@ -101,12 +102,7 @@ export default async function QueuePage({
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Link
-                        href={`/deals/${d.id}`}
-                        className="font-mono text-meta font-medium text-accent-text underline underline-offset-2"
-                      >
-                        {d.reference}
-                      </Link>
+                      <DealReference reference={d.reference} href={`/deals/${d.id}`} />
                       <DealStatusPill status={d.status} />
                       {rule ? <Badge tone="neutral">{rule.label}</Badge> : null}
                     </div>

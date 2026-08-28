@@ -151,7 +151,7 @@ export function ListingForm({
 
     const parsedPrice = parseAmount(price, payment);
     if (parsedPrice === null || parsedPrice <= 0n) {
-      setError(`Enter a price in ${payment}.`);
+      setError(`Enter a price in ${ASSET_LABEL[payment]}.`);
       return;
     }
     const qty = Number(quantity);
@@ -162,7 +162,7 @@ export function ListingForm({
     const parsedCollateral =
       collateral.trim() === "" ? null : parseAmount(collateral, payment);
     if (collateral.trim() !== "" && parsedCollateral === null) {
-      setError(`Collateral must be an amount in ${payment}.`);
+      setError(`Collateral must be an amount in ${ASSET_LABEL[payment]}.`);
       return;
     }
 
@@ -233,7 +233,7 @@ export function ListingForm({
                 type="button"
                 onClick={() => setSide(s)}
                 aria-pressed={side === s}
-                className={`h-10 cursor-pointer rounded-md px-4 text-body font-medium transition-colors duration-200 ${
+                className={`h-11 cursor-pointer rounded-md px-4 text-body font-medium transition-colors duration-200 ${
                   side === s
                     ? s === "SELL"
                       ? "bg-sell-soft text-sell"

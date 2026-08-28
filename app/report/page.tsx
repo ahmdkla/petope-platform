@@ -49,7 +49,9 @@ export default async function ReportPage() {
               <SectionTitle>Your reports</SectionTitle>
               {mine.length === 0 ? (
                 <p className="text-body text-ink-muted">
-                  You have not filed any reports.
+                  You have not filed any report. Anything you send appears here
+                  with its review status, and stays private to you and the
+                  review team unless it is upheld.
                 </p>
               ) : (
                 <ul className="space-y-3">

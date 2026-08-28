@@ -405,7 +405,7 @@ function SubmitForm({
     }
     const parsedAmount = amount.trim() === "" ? null : parseAmount(amount, asset);
     if (amount.trim() !== "" && parsedAmount === null) {
-      setError(`The amount must be a number in ${asset}.`);
+      setError(`The amount must be a number in ${ASSET_LABEL[asset]}.`);
       return;
     }
 

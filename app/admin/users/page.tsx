@@ -105,7 +105,10 @@ export default async function UsersPage({
             </div>
 
             {users.length === 0 ? (
-              <EmptyState icon={Users} message="No accounts match that search." />
+              <EmptyState
+                icon={Users}
+                message="No accounts match that search. Search by display name or email, or clear the field to list everyone."
+              />
             ) : (
               <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-card shadow-card">
                 {users.map((u) => (

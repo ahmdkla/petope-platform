@@ -60,8 +60,8 @@ async function main() {
   function sol(n: number) { return BigInt(Math.round(n * 1_000_000_000)); }
 
   console.log('\nTHE CLIENT CANNOT SET THE FEE');
-  const buyer = await user('buyer@exsaverse.demo');
-  const seller = await user('seller@exsaverse.demo');
+  const buyer = await user('kairo@exsaverse.demo');
+  const seller = await user('dax@exsaverse.demo');
   const mm = await user('akla@exsaverse.demo');
 
   const max = await db.deal.aggregate({ _max: { batchNumber: true } });

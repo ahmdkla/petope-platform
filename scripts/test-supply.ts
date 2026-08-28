@@ -60,11 +60,11 @@ async function makeListing(opts: {
 
 async function main() {
   const run = Date.now().toString(36);
-  const seller = await user('seller2@exsaverse.demo');
+  const seller = await user('lumi@exsaverse.demo');
   const mm = await user('akla@exsaverse.demo');
   const buyers = await Promise.all([
-    user('buyer@exsaverse.demo'), user('buyer2@exsaverse.demo'),
-    user('buyer3@exsaverse.demo'),
+    user('kairo@exsaverse.demo'), user('mirae@exsaverse.demo'),
+    user('vex@exsaverse.demo'),
   ]);
 
   console.log('\nCONCURRENCY LIMIT AND ONE DEAL PER USER');

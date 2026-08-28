@@ -90,34 +90,35 @@ export default async function PublicProfilePage({
           <section>
             <SectionTitle className="mb-4">Active listings</SectionTitle>
             {user.listings.length === 0 ? (
-              <EmptyState icon={Store} message="This member has no active listings." />
+              <EmptyState
+                icon={Store}
+                message="This member has no active listings. Anything they post to the marketplace appears here while it is still open."
+              />
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-line bg-card shadow-card">
-                <table className="w-full border-collapse text-body">
-                  <tbody>
-                    {user.listings.map((l) => (
-                      <tr
-                        key={l.id}
-                        className="h-row border-b border-line last:border-0 transition-colors duration-200 hover:bg-raised"
-                      >
-                        <td className="max-w-[16rem] truncate px-4 text-body text-ink">{l.item}</td>
-                        <td className="px-4">
-                          <Badge tone={l.side === "SELL" ? "sell" : "buy"}>
-                            {l.side === "SELL" ? "Selling" : "Buying"}
-                          </Badge>
-                        </td>
-                        <td className="px-4 text-body text-ink-muted">{l.chain}</td>
-                        <td className="px-4 text-right font-mono tnum text-lead text-ink">
-                          {formatMoney(
-                            resolveTotal(l.price, l.priceType, l.quantity),
-                            l.payment,
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              /* One row per listing, but wrapping rather than scrolling: on a
+                 phone a four-column table would push the price off screen. */
+              <ul className="divide-y divide-line rounded-lg border border-line bg-card shadow-card">
+                {user.listings.map((l) => (
+                  <li
+                    key={l.id}
+                    className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3.5 transition-colors duration-200 hover:bg-raised sm:h-row sm:flex-nowrap sm:py-0"
+                  >
+                    <span className="min-w-0 flex-1 basis-full truncate text-body text-ink sm:basis-auto">
+                      {l.item}
+                    </span>
+                    <Badge tone={l.side === "SELL" ? "sell" : "buy"}>
+                      {l.side === "SELL" ? "Selling" : "Buying"}
+                    </Badge>
+                    <span className="text-body text-ink-muted">{l.chain}</span>
+                    <span className="ml-auto shrink-0 font-mono tnum text-lead text-ink">
+                      {formatMoney(
+                        resolveTotal(l.price, l.priceType, l.quantity),
+                        l.payment,
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
           </section>
         </div>

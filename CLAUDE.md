@@ -16,6 +16,8 @@ the workflow that already works, not reinvent it.**
 - `docs/features.md` — full feature map derived from the Discord server
 - `docs/DECISIONS.md` — running log of settled architectural decisions, and the
   database constraints currently applied
+- `docs/DEPLOY.md` — Vercel deployment, every environment variable, and why the
+  seed never runs automatically
 - `docs/screenshots/` — screenshots of the live Discord workflow
 
 ## Domain Vocabulary (use these exact terms in code and UI)
@@ -374,12 +376,25 @@ payments — the manual MM confirmation step is the thing being demonstrated.
 ## Commands
 ```bash
 npm run dev              # local dev server
-npm run build            # production build
+npm run build            # what Vercel runs:
+                         #   prisma generate && prisma migrate deploy && next build
+npm run build:local      # same build WITHOUT touching the database
 npm run lint             # lint
-npm run test             # tests
-npx prisma migrate dev   # apply schema changes
+npx tsc --noEmit         # types
+
+npm run check:bundle     # server-only code / secrets in client chunks (after a build)
+npm run check:contrast   # WCAG AA on both themes
+npm run check:overflow   # horizontal overflow (needs `npm run dev` running)
+
+npx prisma migrate dev   # apply schema changes locally
 npx prisma studio        # inspect DB
+npm run db:seed          # demo data — MANUAL only, never runs on deploy
 ```
+
+There is no `npm run test`. The escrow suites are run individually and need a
+database: `npx tsx scripts/test-<lifecycle|proofs|release|fee|supply|support|reports|mints>.ts`.
+
+Deployment steps and the environment variables live in `docs/DEPLOY.md`.
 
 ## Design Direction
 

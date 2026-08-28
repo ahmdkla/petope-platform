@@ -1,5 +1,5 @@
 import type { Deal, DealStatus } from "@prisma/client";
-import { Check, CircleSlash, TriangleAlert, Undo2 } from "lucide-react";
+import { CircleSlash, TriangleAlert, Undo2 } from "lucide-react";
 import { Card, SectionTitle, Badge } from "@/components/ui";
 import { DEAL_STATUS_LABEL } from "@/lib/deal-meta";
 import {
@@ -10,92 +10,63 @@ import {
   OFF_PATH_TITLE,
 } from "@/lib/deal-stages";
 
-/** The earliest timestamp that marks each stage as reached. */
-const STAGE_STAMP: Record<string, keyof Deal> = {
-  terms: "createdAt",
-  payment: "fundedAt",
-  delivery: "termsLockedAt",
-  complete: "completedAt",
-};
-
+/**
+ * Where the deal is now — not a history of how it got here.
+ *
+ * The chronological record lives in the activity feed beside the conversation,
+ * where a status change sits next to the message that prompted it. Repeating it
+ * as a stamped timeline here meant two orderings of the same events, and the
+ * one in the sidebar was always the less useful of the two. What is left is the
+ * five-stage indicator: which stage, and one sentence naming who is holding it.
+ */
 export function StatusTimeline({ deal }: { deal: Deal }) {
-  // A deal that left the path does not get a timeline with a missing step —
+  // A deal that left the path does not get a stepper with a missing step —
   // it gets a panel explaining where it actually went.
   if (isOffPath(deal.status)) return <OffPathPanel deal={deal} />;
 
   const currentIndex = stageIndexOf(deal.status);
+  const current = STAGES[currentIndex];
 
   return (
     <Card className="space-y-4">
-      <SectionTitle>Progress</SectionTitle>
+      <div className="flex items-baseline justify-between gap-3">
+        <SectionTitle>Progress</SectionTitle>
+        <span className="font-mono tnum text-meta text-ink-faint">
+          {currentIndex + 1} of {STAGES.length}
+        </span>
+      </div>
 
-      <ol className="space-y-0">
-        {STAGES.map((stage, i) => {
-          const done = currentIndex > i;
-          const current = currentIndex === i;
-          const last = i === STAGES.length - 1;
-          const stampField = STAGE_STAMP[stage.id];
-          const stamp = done && stampField ? (deal[stampField] as Date | null) : null;
-
-          return (
-            <li key={stage.id} className="flex gap-3">
-              <span className="flex flex-col items-center">
-                <span
-                  aria-hidden
-                  className={`grid size-6 shrink-0 place-items-center rounded-md border ${
-                    current
-                      ? "border-accent bg-accent text-accent-ink"
-                      : done
-                        ? "border-ok/40 bg-ok-soft text-ok"
-                        : "border-line bg-raised text-ink-faint"
-                  }`}
-                >
-                  {done ? (
-                    <Check className="size-3.5" strokeWidth={2.5} />
-                  ) : (
-                    <span className="font-mono tnum text-[0.6875rem]">{i + 1}</span>
-                  )}
-                </span>
-                {!last ? (
-                  <span
-                    aria-hidden
-                    className={`w-px flex-1 ${done ? "bg-ok/40" : "bg-line"}`}
-                    style={{ minHeight: current ? "3rem" : "1.5rem" }}
-                  />
-                ) : null}
-              </span>
-
-              <span className={last ? "pb-0" : "pb-5"}>
-                <span
-                  className={`block text-body ${
-                    current
-                      ? "font-semibold text-ink"
-                      : done
-                        ? "text-ink-muted"
-                        : "text-ink-faint"
-                  }`}
-                >
-                  {stage.label}
-                </span>
-
-                {/* Only the current stage explains itself — the rest would be
-                    noise, and a finished stage needs no instructions. */}
-                {current ? (
-                  <span className="mt-1 block text-meta text-ink-muted">
-                    {stageSentence(deal)}
-                  </span>
-                ) : null}
-
-                {stamp ? (
-                  <span className="mt-0.5 block font-mono text-meta text-ink-faint">
-                    {stamp.toISOString().replace("T", " ").slice(0, 16)} UTC
-                  </span>
-                ) : null}
-              </span>
-            </li>
-          );
-        })}
+      {/* Segments rather than a numbered list: it reads at a glance and stays
+          legible in a 22rem sidebar and on a phone alike. */}
+      <ol className="flex gap-1.5">
+        {STAGES.map((stage, i) => (
+          <li key={stage.id} className="flex-1">
+            <span
+              aria-hidden
+              className={`block h-1.5 rounded-full ${
+                i < currentIndex
+                  ? "bg-ok"
+                  : i === currentIndex
+                    ? "bg-accent"
+                    : "bg-line"
+              }`}
+            />
+            <span className="sr-only">
+              {stage.label}
+              {i < currentIndex
+                ? " — done"
+                : i === currentIndex
+                  ? " — in progress"
+                  : " — not started"}
+            </span>
+          </li>
+        ))}
       </ol>
+
+      <div>
+        <p className="text-lead font-semibold text-ink">{current.label}</p>
+        <p className="mt-1.5 text-body text-ink-muted">{stageSentence(deal)}</p>
+      </div>
 
       {deal.status === "FUNDED" ? (
         <p className="border-t border-line pt-4 text-meta text-ink-muted">

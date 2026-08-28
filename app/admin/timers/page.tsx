@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Timer } from "lucide-react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { Badge, Card, EmptyState, Note, SectionTitle } from "@/components/ui";
+import { DealReference } from "@/components/deal-reference";
 import { RunTimersButton } from "./run-button";
 
 export const metadata: Metadata = { title: "Release timers — EXSAVERSE" };
@@ -83,12 +83,7 @@ export default async function TimersPage() {
                 {running.map((d) => (
                   <li key={d.id} className="py-3.5 first:pt-0 last:pb-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Link
-                        href={`/deals/${d.id}`}
-                        className="font-mono text-meta font-medium text-accent-text underline underline-offset-2"
-                      >
-                        {d.reference}
-                      </Link>
+                      <DealReference reference={d.reference} href={`/deals/${d.id}`} />
                       <span className="text-body text-ink">{d.projectName}</span>
                       {d.timersPausedAt ? <Badge tone="neutral">Paused</Badge> : null}
                       {d.receiptConfirmedAt ? <Badge tone="ok">Receipt confirmed</Badge> : null}

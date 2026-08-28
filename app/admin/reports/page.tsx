@@ -4,6 +4,7 @@ import { ShieldCheck } from "lucide-react";
 import { db } from "@/lib/db";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { Avatar, Badge, Card, EmptyState, SectionTitle } from "@/components/ui";
+import { DealReference } from "@/components/deal-reference";
 import { ReviewForm } from "./review-form";
 import {
   REPORT_CATEGORY_LABEL,
@@ -49,7 +50,18 @@ export default async function ReportsPage() {
           <section className="space-y-4">
             <SectionTitle>Awaiting review</SectionTitle>
             {pending.length === 0 ? (
-              <EmptyState icon={ShieldCheck} message="Nothing waiting. New reports appear here." />
+              <EmptyState
+                icon={ShieldCheck}
+                message="Nothing waiting. Reports members file from the Report a scammer page land here for review, and stay private until one is upheld."
+                action={
+                  <Link
+                    href="/report"
+                    className="text-body font-medium text-accent-text underline underline-offset-2"
+                  >
+                    See the reporting form
+                  </Link>
+                }
+              />
             ) : (
               pending.map((r) => (
                 <Card key={r.id} className="space-y-4">
@@ -99,12 +111,10 @@ export default async function ReportsPage() {
                       </a>
                     ) : null}
                     {r.deal ? (
-                      <Link
+                      <DealReference
+                        reference={r.deal.reference}
                         href={`/deals/${r.deal.id}`}
-                        className="font-mono text-meta text-accent-text underline underline-offset-2"
-                      >
-                        {r.deal.reference}
-                      </Link>
+                      />
                     ) : null}
                   </div>
 

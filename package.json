@@ -4,9 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && prisma migrate deploy && next build",
+    "build:local": "prisma generate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check:bundle": "node scripts/check-client-bundle.mjs",
+    "check:contrast": "node scripts/check-contrast.mjs",
+    "check:overflow": "node scripts/check-overflow.mjs",
+    "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",

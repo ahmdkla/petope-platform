@@ -9,7 +9,7 @@ import type { LucideIcon } from "lucide-react";
 export function Card({ className = "", ...props }: ComponentProps<"div">) {
   return (
     <div
-      className={`rounded-lg border border-line bg-card p-6 shadow-card ${className}`}
+      className={`min-w-0 rounded-lg border border-line bg-card p-6 shadow-card ${className}`}
       {...props}
     />
   );
@@ -76,7 +76,10 @@ export function Button({
       "border border-danger/40 bg-danger-soft text-danger hover:border-danger/70",
   }[variant];
 
-  const sizing = size === "sm" ? "h-9 px-3 text-meta" : "h-field px-4 text-body";
+  // Even the compact variant clears 44px on a phone; several of these are
+  // confirm/reject on a payment proof, which is not a control to mis-tap.
+  const sizing =
+    size === "sm" ? "h-11 px-3 text-meta sm:h-9" : "h-field px-4 text-body";
 
   return (
     <button
@@ -182,10 +185,17 @@ export function Avatar({
   name,
   seed,
   size = "md",
+  onShift,
 }: {
   name: string;
   seed: string;
   size?: "sm" | "md" | "lg";
+  /**
+   * Middlemen only. `true` puts a live dot on the tile, `false` a hollow one,
+   * `undefined` neither — the last is for people who do not keep shifts at all,
+   * where a grey dot would read as "off shift" rather than "not applicable".
+   */
+  onShift?: boolean;
 }) {
   const hues = [28, 45, 160, 200, 260, 340];
   let h = 0;
@@ -193,8 +203,9 @@ export function Avatar({
   const hue = hues[h % hues.length];
 
   const dim = { sm: "size-8 text-meta", md: "size-10 text-body", lg: "size-12 text-lead" }[size];
+  const dot = { sm: "size-2.5", md: "size-3", lg: "size-3.5" }[size];
 
-  return (
+  const tile = (
     <span
       aria-hidden
       className={`grid shrink-0 place-items-center rounded-lg border border-line font-mono font-semibold uppercase ${dim}`}
@@ -204,6 +215,25 @@ export function Avatar({
       }}
     >
       {name.slice(0, 2)}
+    </span>
+  );
+
+  if (onShift === undefined) return tile;
+
+  // Shift state rides on the avatar so it appears everywhere a middleman does,
+  // not only on the roster. The ring is the card background so the dot reads as
+  // separate from the tile on any surface.
+  return (
+    <span className="relative inline-flex shrink-0">
+      {tile}
+      <span
+        title={onShift ? "On shift now" : "Off shift"}
+        className={`absolute -bottom-0.5 -right-0.5 rounded-full ring-2 ring-card ${dot} ${
+          onShift ? "bg-ok" : "border border-line-strong bg-canvas"
+        }`}
+      >
+        <span className="sr-only">{onShift ? "on shift now" : "off shift"}</span>
+      </span>
     </span>
   );
 }

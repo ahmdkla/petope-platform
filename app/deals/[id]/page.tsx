@@ -215,12 +215,13 @@ export default async function DealRoomPage({
     <AppShell>
       <PageHeader
         title={deal.projectName}
-        description={`Deal room ${deal.reference}`}
+        description="Deal room"
+        reference={deal.reference}
         actions={<DealStatusPill status={deal.status} />}
       />
 
       {/* Two panes: the conversation and terms lead, deal state sits alongside. */}
-      <div className="grid gap-8 px-8 py-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid gap-6 px-4 py-6 sm:px-6 lg:gap-8 lg:px-8 lg:py-8 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="min-w-0 space-y-6">
           <TermsCard deal={deal} role={role} />
 

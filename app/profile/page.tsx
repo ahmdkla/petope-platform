@@ -128,7 +128,10 @@ export default async function ProfilePage() {
               The platform never connects to a wallet and never holds keys.
             </p>
             {wallets.length === 0 ? (
-              <EmptyState icon={Wallet} message="No wallet addresses on file." />
+              <EmptyState
+                icon={Wallet}
+                message="No wallet addresses on file. Add the addresses you trade from so a middleman can match a payment you send to your account. Use the form above."
+              />
             ) : (
               <ul className="divide-y divide-line rounded-lg border border-line">
                 {wallets.map((w) => (

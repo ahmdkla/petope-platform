@@ -41,7 +41,7 @@ export default async function MintsPage() {
               {upcoming.length === 0 ? (
                 <EmptyState
                   icon={CalendarDays}
-                  message="No mints are scheduled. Middlemen add entries as projects announce dates."
+                  message="No mints are scheduled. Middlemen and admins add a project here as soon as it announces a date, and any deal linked to it picks up the schedule."
                 />
               ) : (
                 <ul className="space-y-3">

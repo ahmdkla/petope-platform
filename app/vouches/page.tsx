@@ -4,6 +4,7 @@ import { MessageSquareQuote, BadgeCheck } from "lucide-react";
 import { db } from "@/lib/db";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { Avatar, Badge, Card, EmptyState, Note, SectionTitle } from "@/components/ui";
+import { isOnShift } from "@/lib/shifts";
 
 export const metadata: Metadata = {
   title: "Vouches — EXSAVERSE",
@@ -28,7 +29,14 @@ export default async function VouchesPage({
       },
       include: {
         author: { select: { id: true, displayName: true } },
-        middleman: { select: { id: true, displayName: true, isVerifiedMm: true } },
+        middleman: {
+          select: {
+            id: true,
+            displayName: true,
+            isVerifiedMm: true,
+            workingHoursUtc: true,
+          },
+        },
         deal: { select: { projectName: true, reference: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -84,6 +92,7 @@ export default async function VouchesPage({
                     <Avatar
                       name={v.middleman.displayName ?? "??"}
                       seed={v.middleman.id}
+                      onShift={isOnShift(v.middleman.workingHoursUtc)}
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
@@ -130,7 +139,7 @@ export default async function VouchesPage({
                 <li>
                   <Link
                     href="/vouches"
-                    className={`flex h-9 items-center justify-between rounded-md px-2.5 text-meta transition-colors duration-200 ${
+                    className={`flex h-11 items-center justify-between rounded-md px-2.5 text-meta transition-colors duration-200 ${
                       mm ? "text-ink-muted hover:bg-raised" : "bg-raised font-medium text-ink"
                     }`}
                   >
@@ -141,7 +150,7 @@ export default async function VouchesPage({
                   <li key={m.id}>
                     <Link
                       href={`/vouches?mm=${m.id}`}
-                      className={`flex h-9 items-center justify-between gap-2 rounded-md px-2.5 text-meta transition-colors duration-200 ${
+                      className={`flex h-11 items-center justify-between gap-2 rounded-md px-2.5 text-meta transition-colors duration-200 ${
                         mm === m.id
                           ? "bg-raised font-medium text-ink"
                           : "text-ink-muted hover:bg-raised"

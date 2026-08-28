@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentUser, type CurrentUser } from "@/lib/session";
 import { LISTING_TYPE_TO_METHOD } from "@/lib/listing-meta";
-import { resolveTotal } from "@/lib/money";
+import { ASSET_LABEL, resolveTotal } from "@/lib/money";
 import { getCollateralMinimum, getMaxConcurrentDeals } from "@/lib/admin-settings";
 
 // Terms are agreed in one of these. USDC/USDT are no longer separate options:
@@ -59,7 +59,7 @@ export async function createListing(input: unknown): Promise<ActionResult> {
     if (min && data.collateral < min.amount && data.collateral > 0n) {
       return {
         ok: false,
-        error: `Collateral is below the configured minimum for ${min.asset}.`,
+        error: `Collateral is below the configured minimum for ${ASSET_LABEL[min.asset]}.`,
       };
     }
   }

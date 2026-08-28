@@ -135,9 +135,12 @@ function subscribe(cb: () => void) {
 export function Sidebar({
   showQueue = false,
   showAdmin = false,
+  onNavigate,
 }: {
   showQueue?: boolean;
   showAdmin?: boolean;
+  /** Called after any link is followed, so the mobile drawer can close. */
+  onNavigate?: () => void;
 }) {
   const pathname = usePathname();
   const params = useSearchParams();
@@ -170,8 +173,15 @@ export function Sidebar({
   ];
 
   return (
-    <nav aria-label="Primary" className="flex w-60 shrink-0 flex-col border-r border-line bg-card">
-      <Link href="/" className="flex h-16 items-center gap-2.5 border-b border-line px-5">
+    <nav
+      aria-label="Primary"
+      className="flex h-full w-60 shrink-0 flex-col border-r border-line bg-card"
+    >
+      <Link
+        href="/"
+        onClick={onNavigate}
+        className="flex h-16 items-center gap-2.5 border-b border-line px-5"
+      >
         <span className="grid size-7 place-items-center rounded-md bg-accent font-mono text-meta font-bold text-accent-ink">
           E
         </span>
@@ -194,6 +204,7 @@ export function Sidebar({
               <div className="flex items-center gap-1">
                 <Link
                   href={item.href}
+                  onClick={onNavigate}
                   aria-current={onSection ? "page" : undefined}
                   className={`flex h-11 flex-1 items-center gap-3 rounded-md px-3 text-body transition-colors duration-200 ${
                     onSection
@@ -211,7 +222,7 @@ export function Sidebar({
                     onClick={() => toggle(item.href)}
                     aria-expanded={isOpen}
                     aria-label={`${isOpen ? "Collapse" : "Expand"} ${item.label}`}
-                    className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-md text-ink-faint transition-colors duration-200 hover:bg-raised hover:text-ink"
+                    className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-md text-ink-faint transition-colors duration-200 hover:bg-raised hover:text-ink"
                   >
                     <ChevronRight
                       aria-hidden
@@ -230,8 +241,9 @@ export function Sidebar({
                       <li key={child.href}>
                         <Link
                           href={child.href}
+                          onClick={onNavigate}
                           aria-current={active ? "page" : undefined}
-                          className={`flex h-9 items-center rounded-md px-3 text-meta transition-colors duration-200 ${
+                          className={`flex h-11 items-center rounded-md px-3 text-meta transition-colors duration-200 ${
                             active
                               ? "bg-raised font-medium text-ink"
                               : "text-ink-faint hover:bg-raised hover:text-ink-muted"

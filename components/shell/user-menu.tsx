@@ -54,8 +54,16 @@ export function UserMenu({ user }: { user: CurrentUser }) {
         className="flex h-11 cursor-pointer items-center gap-2.5 rounded-md border border-line bg-card px-2.5 text-body text-ink transition-colors duration-200 hover:border-line-strong"
       >
         <Avatar name={user.displayName ?? user.email} seed={user.id} size="sm" />
-        <span className="font-mono">{user.displayName ?? user.email}</span>
-        <ChevronDown aria-hidden className="size-4 text-ink-faint" strokeWidth={1.75} />
+        {/* The handle is the identity check people make before acting on a
+            message, so it stays wherever there is room for it. */}
+        <span className="hidden max-w-[12rem] truncate font-mono sm:inline">
+          {user.displayName ?? user.email}
+        </span>
+        <ChevronDown
+          aria-hidden
+          className="hidden size-4 text-ink-faint sm:block"
+          strokeWidth={1.75}
+        />
       </button>
 
       {open ? (

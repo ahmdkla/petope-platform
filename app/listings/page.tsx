@@ -120,7 +120,7 @@ export default async function ListingsPage({
       />
 
       {soldOutOnly ? null : (
-        <div className="border-b border-line px-8">
+        <div className="border-b border-line px-4 sm:px-6 lg:px-8">
           <SideTabs side={side} buyCount={buyCount} sellCount={sellCount} />
         </div>
       )}
@@ -143,7 +143,7 @@ export default async function ListingsPage({
               }
             />
           ) : (
-            <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <div className="grid gap-5 grid-cols-[repeat(auto-fill,minmax(min(100%,21rem),1fr))]">
               {listings.map((l) => {
                 const demand = demandMap.get(l.id) ?? {
                   quantityRemaining: l.quantityRemaining,

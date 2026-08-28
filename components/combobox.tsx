@@ -140,7 +140,7 @@ export function Combobox({
                 aria-selected={o === value}
                 onMouseEnter={() => setActive(i)}
                 onClick={() => choose(o)}
-                className={`flex h-10 w-full cursor-pointer items-center px-3 text-left text-body transition-colors duration-200 ${
+                className={`flex h-11 w-full cursor-pointer items-center px-3 text-left text-body transition-colors duration-200 ${
                   i === active ? "bg-raised text-ink" : "text-ink-muted"
                 } ${o === value ? "font-semibold text-accent-text" : ""}`}
               >

@@ -25,10 +25,14 @@ export function ListingFilters({ chains }: { chains: string[] }) {
 
   return (
     <div className="flex flex-wrap items-end gap-3">
+      {/* Each field takes a full row on a phone and its natural width from
+          `sm` up — four 200px controls wrapped at 375px otherwise leave half
+          the row empty. */}
       <Field label="Project" htmlFor="f-q">
         {/* Uncontrolled and keyed on the URL value: the query string is the
             single source of truth, so there is no local state to resync. */}
         <form
+          className="w-full"
           onSubmit={(e) => {
             e.preventDefault();
             const value = new FormData(e.currentTarget).get("q");
@@ -41,7 +45,7 @@ export function ListingFilters({ chains }: { chains: string[] }) {
             name="q"
             defaultValue={q}
             placeholder="Search by name"
-            className="w-52"
+            className="w-full sm:w-52"
           />
         </form>
       </Field>
@@ -52,7 +56,7 @@ export function ListingFilters({ chains }: { chains: string[] }) {
           id="f-chain"
           value={params.get("chain") ?? "ALL"}
           onChange={(e) => apply("chain", e.target.value)}
-          className="w-44"
+          className="w-full sm:w-44"
         >
           <option value="ALL">All chains</option>
           {chains.map((c) => (
@@ -68,7 +72,7 @@ export function ListingFilters({ chains }: { chains: string[] }) {
           id="f-type"
           value={params.get("type") ?? "ALL"}
           onChange={(e) => apply("type", e.target.value)}
-          className="w-48"
+          className="w-full sm:w-48"
         >
           <option value="ALL">All methods</option>
           {Object.entries(LISTING_TYPE_LABEL).map(([v, label]) => (
@@ -84,7 +88,7 @@ export function ListingFilters({ chains }: { chains: string[] }) {
           id="f-specific"
           value={params.get("specific") ?? "ALL"}
           onChange={(e) => apply("specific", e.target.value)}
-          className="w-36"
+          className="w-full sm:w-36"
         >
           <option value="ALL">All spots</option>
           <option value="GTD">GTD</option>
@@ -120,7 +124,7 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className="w-full space-y-1.5 sm:w-auto">
       <label htmlFor={htmlFor} className="block text-meta font-medium text-ink-muted">
         {label}
       </label>

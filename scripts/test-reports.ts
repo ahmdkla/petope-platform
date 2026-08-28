@@ -24,7 +24,7 @@ async function publicBlacklist() {
 
 async function main() {
   const run = Date.now().toString(36);
-  const reporter = await user('buyer@exsaverse.demo');
+  const reporter = await user('kairo@exsaverse.demo');
   const admin = await user('admin@exsaverse.demo');
   const plainMm = await user('rei@exsaverse.demo');
 

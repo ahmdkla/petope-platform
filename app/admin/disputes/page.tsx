@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Gavel } from "lucide-react";
 import { db } from "@/lib/db";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { Avatar, Badge, Card, EmptyState, SectionTitle } from "@/components/ui";
+import { DealReference } from "@/components/deal-reference";
 import { formatMoney } from "@/lib/money";
 import { DEAL_METHOD_RULES } from "@/lib/deal-methods";
 import { RulingForm } from "./ruling-form";
@@ -57,12 +57,7 @@ export default async function DisputesPage() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Link
-                        href={`/deals/${d.id}`}
-                        className="font-mono text-meta font-medium text-accent-text underline underline-offset-2"
-                      >
-                        {d.reference}
-                      </Link>
+                      <DealReference reference={d.reference} href={`/deals/${d.id}`} />
                       <Badge tone="danger">Disputed</Badge>
                       {d.method ? (
                         <Badge tone="neutral">{DEAL_METHOD_RULES[d.method].label}</Badge>

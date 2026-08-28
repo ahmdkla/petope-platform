@@ -48,7 +48,8 @@ export default async function SupportRoomPage({
     <AppShell>
       <PageHeader
         title={ticket.subject}
-        description={`Support room ${ticket.reference}`}
+        description="Support room"
+        reference={ticket.reference}
         actions={
           <Badge tone={SUPPORT_STATUS_TONE[ticket.status]}>
             {SUPPORT_STATUS_LABEL[ticket.status]}
@@ -56,7 +57,7 @@ export default async function SupportRoomPage({
         }
       />
 
-      <div className="grid gap-8 px-8 py-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid gap-6 px-4 py-6 sm:px-6 lg:gap-8 lg:px-8 lg:py-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <SupportThread
           ticketId={ticket.id}
           messages={messages.map((m) => ({

@@ -24,8 +24,8 @@ async function user(email: string): Promise<CurrentUser> {
 }
 
 async function main() {
-  const opener = await user('buyer@exsaverse.demo');
-  const stranger = await user('buyer2@exsaverse.demo');
+  const opener = await user('kairo@exsaverse.demo');
+  const stranger = await user('mirae@exsaverse.demo');
   const mm = await user('rei@exsaverse.demo');
   const admin = await user('admin@exsaverse.demo');
 

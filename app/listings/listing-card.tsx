@@ -1,7 +1,13 @@
 import Link from "next/link";
 import type { Listing } from "@prisma/client";
 import { ExternalLink, Layers, Package } from "lucide-react";
-import { formatAmount, formatMoney, resolveTotal, describePriceType } from "@/lib/money";
+import {
+  ASSET_LABEL,
+  formatAmount,
+  formatMoney,
+  resolveTotal,
+  describePriceType,
+} from "@/lib/money";
 import { LISTING_TYPE_LABEL } from "@/lib/listing-meta";
 import { Avatar, Badge } from "@/components/ui";
 import { DemandLine, FeeBreakdown } from "@/components/fee-breakdown";
@@ -35,7 +41,10 @@ export function ListingCard({
 
   return (
     <article
-      className={`flex flex-col rounded-xl border bg-card shadow-card transition-colors duration-200 hover:border-line-strong ${
+      // `min-w-0` matters: a grid item's automatic minimum size is its
+      // min-content, so without this the card refuses to shrink into its track
+      // and overflows the grid instead.
+      className={`flex min-w-0 flex-col rounded-xl border bg-card shadow-card transition-colors duration-200 hover:border-line-strong ${
         l.promoted ? "border-accent-line" : "border-line"
       }`}
     >
@@ -79,7 +88,7 @@ export function ListingCard({
         <div className="mt-4 flex items-end justify-between gap-3">
           <div>
             <p className="text-meta text-ink-faint">
-              {formatAmount(l.price, l.payment)} {l.payment}{" "}
+              {formatAmount(l.price, l.payment)} {ASSET_LABEL[l.payment]}{" "}
               {describePriceType(l.priceType)}
             </p>
             <p className="mt-0.5 font-mono tnum text-section-lg font-semibold text-ink">
@@ -122,7 +131,7 @@ export function ListingCard({
         ) : null}
       </div>
 
-      <footer className="flex items-center justify-between gap-3 border-t border-line px-5 py-4">
+      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-4">
         <Link
           href={`/u/${l.author.id}`}
           className="flex min-w-0 items-center gap-2.5 transition-opacity duration-200 hover:opacity-80"

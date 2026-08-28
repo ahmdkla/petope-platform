@@ -30,8 +30,8 @@ async function user(email: string): Promise<CurrentUser> {
 async function fundedDeal(opts: {
   label: string; method: DealMethod; collateral: bigint | null; mintPast?: boolean;
 }) {
-  const buyer = await user('buyer@exsaverse.demo');
-  const seller = await user('seller@exsaverse.demo');
+  const buyer = await user('kairo@exsaverse.demo');
+  const seller = await user('dax@exsaverse.demo');
   const mm = await user('akla@exsaverse.demo');
 
   const max = await db.deal.aggregate({ _max: { batchNumber: true } });
@@ -199,7 +199,7 @@ async function main() {
     });
     await applyTransition(deal.id, 'begin_delivery', mm);
     await declareHandover(deal.id, buyer, true);
-    await declareHandover(deal.id, (await user('seller@exsaverse.demo')), true);
+    await declareHandover(deal.id, (await user('dax@exsaverse.demo')), true);
     await applyTransition(deal.id, 'complete_handover', mm);
     await applyTransition(deal.id, 'reach_mint', mm);
 

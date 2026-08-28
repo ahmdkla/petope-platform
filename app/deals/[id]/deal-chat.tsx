@@ -2,9 +2,20 @@
 
 import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Send, Bot, MessagesSquare } from "lucide-react";
+import {
+  Send,
+  Bot,
+  MessagesSquare,
+  ShieldCheck,
+  Receipt,
+  Check,
+  Clock3,
+  TriangleAlert,
+  Undo2,
+} from "lucide-react";
 import { postMessage } from "./actions";
 import { Avatar, Button, Card, FormError, SectionTitle, Textarea } from "@/components/ui";
+import { classifySystemMessage, type SystemEvent } from "@/lib/deal-events";
 
 type Message = {
   id: string;
@@ -16,8 +27,18 @@ type Message = {
 };
 
 /**
- * Deal-room conversation. Append-only: messages cannot be edited or deleted
- * because the transcript is a permanent record of what was agreed.
+ * The deal room's activity feed: what people said and what the deal did, in one
+ * chronological stream.
+ *
+ * System events — claims, terms locks, proof submissions, middleman
+ * verifications, timers, rulings — are written as `SYSTEM` messages by the
+ * engine at the moment they happen, so ordering is a plain `createdAt` sort
+ * rather than a merge of two sources that could disagree. Keeping them beside
+ * the conversation is the point: "the middleman confirmed the payment" belongs
+ * next to the sentence where the buyer said they had sent it.
+ *
+ * Append-only: nothing here can be edited or deleted, because the transcript is
+ * a permanent record of what was agreed.
  */
 export function DealChat({
   dealId,
@@ -61,10 +82,10 @@ export function DealChat({
 
   return (
     <Card className="space-y-4">
-      <div className="flex items-center justify-between">
-        <SectionTitle>Conversation</SectionTitle>
+      <div className="flex items-center justify-between gap-3">
+        <SectionTitle>Activity</SectionTitle>
         <span className="font-mono tnum text-meta text-ink-faint">
-          {count} {count === 1 ? "message" : "messages"}
+          {count} {count === 1 ? "entry" : "entries"}
         </span>
       </div>
 
@@ -78,8 +99,10 @@ export function DealChat({
             <span className="grid size-11 place-items-center rounded-lg border border-line bg-card text-ink-faint">
               <MessagesSquare aria-hidden className="size-5" strokeWidth={1.75} />
             </span>
-            <p className="text-body text-ink-muted">
-              No messages yet. Agree the terms here before anything is sent.
+            <p className="max-w-sm text-body text-ink-muted">
+              Nothing has happened yet. Messages between the three of you, and
+              every step the deal takes, appear here in order. Agree the terms
+              before anything is sent.
             </p>
           </div>
         ) : (
@@ -128,17 +151,58 @@ export function DealChat({
   );
 }
 
+const EVENT_ICON = {
+  bot: Bot,
+  shield: ShieldCheck,
+  receipt: Receipt,
+  check: Check,
+  clock: Clock3,
+  alert: TriangleAlert,
+  undo: Undo2,
+} as const;
+
+/** Tint per event class, so the feed is scannable without reading every line. */
+const EVENT_TONE: Record<SystemEvent["tone"], { mark: string; panel: string }> = {
+  neutral: {
+    mark: "border-line bg-raised text-ink-faint",
+    panel: "border-line bg-raised",
+  },
+  money: {
+    mark: "border-accent-line bg-accent-soft text-accent-text",
+    panel: "border-accent-line bg-accent-soft",
+  },
+  ok: {
+    mark: "border-ok/40 bg-ok-soft text-ok",
+    panel: "border-ok/30 bg-ok-soft",
+  },
+  warn: {
+    mark: "border-warn/40 bg-warn-soft text-warn",
+    panel: "border-warn/30 bg-warn-soft",
+  },
+  danger: {
+    mark: "border-danger/40 bg-danger-soft text-danger",
+    panel: "border-danger/30 bg-danger-soft",
+  },
+};
+
 function SystemMessage({ message }: { message: Message }) {
+  const event = classifySystemMessage(message.body);
+  const Icon = EVENT_ICON[event.icon];
+  const tone = EVENT_TONE[event.tone];
+
   return (
     <div className="flex gap-3">
       <span
         aria-hidden
-        className="grid size-8 shrink-0 place-items-center rounded-lg border border-line bg-raised text-ink-faint"
+        className={`grid size-8 shrink-0 place-items-center rounded-lg border ${tone.mark}`}
       >
-        <Bot className="size-4" strokeWidth={1.75} />
+        <Icon className="size-4" strokeWidth={1.75} />
       </span>
-      <div className="min-w-0 flex-1 rounded-lg border border-line bg-raised px-3 py-2.5">
-        <p className="text-body text-ink-muted">{message.body}</p>
+      <div className={`min-w-0 flex-1 rounded-lg border px-3 py-2.5 ${tone.panel}`}>
+        <p className="text-meta font-medium uppercase tracking-wide text-ink-faint">
+          {event.label}
+        </p>
+        <p className="mt-1 text-body text-ink-muted">{message.body}</p>
         <Stamp at={message.createdAt} />
       </div>
     </div>

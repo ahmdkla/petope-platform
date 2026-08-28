@@ -407,3 +407,177 @@ is why that enum exists.
 
 The three NextAuth models (`Account`, `Session`, `VerificationToken`) keep
 `onDelete: Cascade` — transient auth state, not audit data.
+
+---
+
+## The deal room has one chronological record, not two
+
+**Date:** 2026-08-28
+
+The deal room previously carried a stamped step-by-step timeline in the sidebar
+*and* system messages in the conversation, describing the same events in two
+orderings. The sidebar copy was the less useful of the two — it could show that
+funding happened but not what was said around it.
+
+System events are now the record. Every transition, proof submission, middleman
+verification, timer run and admin ruling already writes a `SYSTEM` `DealMessage`
+at the moment it happens, so the feed is a plain `createdAt` sort of one table
+rather than a merge of two sources that could disagree.
+
+The sidebar keeps the five-stage indicator — *where the deal is now*, plus one
+sentence naming who is holding it up. That is a status readout, not a history.
+
+`lib/deal-events.ts` picks an icon and tint per system message by matching its
+text. **Nothing depends on the result**: an unmatched message still renders with
+the neutral bot mark, and no state, money or permission is derived from it. If
+the feed ever needs real semantics, `DealMessage` gets an event column — that
+file does not get logic.
+
+---
+
+## Mobile: one component per surface, not a mobile variant
+
+**Date:** 2026-08-28
+
+Below `md` the sidebar rides in a drawer, modals become bottom sheets, the
+floating chat becomes a full-screen sheet, and the deal list renders as cards.
+In every case the *same* component or data set feeds both shapes —
+`components/shell/mobile-nav.tsx` renders the one `<Sidebar>`, and
+`app/deals/deal-list.tsx` maps its rows once before rendering them twice. A
+separate mobile component would be a second definition to keep in step, and the
+one that drifts is always the one fewer people look at.
+
+Touch targets are 44px on phones, including `Button size="sm"` — several of
+those are confirm/reject on a payment proof.
+
+**Verified:** `scratchpad/overflow.mjs` drives headless Chrome over CDP and
+asserts no element's right edge exceeds the viewport, across every page, both a
+buyer and a main-middleman session, at 375 / 768 / 1024 / 1280 / 1440 / 1920.
+It reports the offending element, not just that the page scrolls. Two real bugs
+came out of it that reading the markup had missed.
+
+---
+
+## Card grids follow the container, not the viewport
+
+**Date:** 2026-08-28
+
+The listings grid used `sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4`. Tailwind
+breakpoints are **viewport** widths, but the grid lives in a column that is 240px
+narrower than the viewport because of the sidebar. At 1280px it asked for three
+312px tracks while the card's action row — two `h-field` buttons that could not
+wrap — needed ~360px. A grid item's automatic minimum size is its min-content, so
+the card refused to shrink into its track, overflowed the grid, and took the
+whole page into horizontal scroll: cards clipped, "Post a listing" cut off.
+
+Three changes, in order of how general they are:
+
+1. `grid-cols-[repeat(auto-fill,minmax(min(100%,21rem),1fr))]` — column count now
+   follows the width the grid actually has. `min(100%, …)` keeps the track from
+   exceeding a narrow container. 21rem is the width the card needs before its
+   fee table starts wrapping mid-row; 19rem was tried and looked broken.
+2. The card's action row and footer wrap, so its min-content is a button rather
+   than a row of them.
+3. `min-w-0` on `Card` and on the dashboard's two grid columns. Below `lg` those
+   two share one implicit `auto` track whose minimum is the widest item's
+   min-content — one wide row inside either column widened the track past the
+   viewport.
+
+**The lesson is (1).** Any grid inside the app shell is container-constrained, so
+viewport breakpoints are the wrong tool for it.
+
+---
+
+## The deal table appears at `xl`, not `md`
+
+**Date:** 2026-08-28
+
+Six columns need roughly 1100px. At exactly 768px the sidebar appears (`md`) *and*
+the table appeared (`md`), leaving the table 480px and pushing the amount — the
+column people are looking for — out of view behind a scrollbar. The card list now
+runs to `xl`. The rows are still mapped once and rendered twice, so the two
+shapes cannot disagree.
+
+---
+
+## `STABLE` is a settlement class and must never reach the UI
+
+**Date:** 2026-08-28
+
+A listing card read "35 STABLE each" above "35 USDC/USDT": the per-unit line
+printed `listing.payment` directly instead of going through `ASSET_LABEL`.
+`STABLE` means "USDC or USDT, coin chosen at payment time" — it is not something
+anyone can send.
+
+Every place an asset reaches a user now goes through `ASSET_LABEL`, including
+validation messages ("Enter an amount in USDC/USDT"), the offer form, and the fee
+hints. `SOL` is unaffected because there the enum value *is* the display name,
+which is exactly why the bug survived review for so long — it only showed on
+stablecoin listings.
+
+`getCollateralMinimum()` also narrows its JSON `asset` string to `PaymentAsset`
+instead of casting, so a mistyped admin setting is refused at the read rather
+than rendering as an unrecognised label.
+
+---
+
+## The seed never runs on a deploy
+
+**Date:** 2026-08-28
+
+`prisma.config.ts` registers the seed under `migrations.seed`, which is invoked
+only by `prisma db seed`, `prisma migrate dev` and `prisma migrate reset`. The
+Vercel build runs `prisma migrate deploy`, which is none of those. Verified by
+running `migrate deploy` three times against the seeded database and watching
+every row count stay identical.
+
+The stake is higher than tidiness: the seed creates fifteen accounts with a
+known shared password through `auth.api.signUpEmail`. Running on every deploy
+would either fail on the unique email constraint or silently re-create
+sign-in-able accounts on a live site.
+
+Seeding is therefore a **manual, first-deploy-only** step, and it is not
+idempotent — a second run fails on duplicate emails rather than quietly
+producing a second cast. Steps are in `docs/DEPLOY.md`.
+
+---
+
+## `DATABASE_URL` is pooled; migrations may need `DIRECT_URL`
+
+**Date:** 2026-08-28
+
+The running app uses Neon's **pooled** endpoint with `sslmode=verify-full`:
+serverless opens a connection per invocation and a direct endpoint runs out.
+`verify-full` rather than `require` because `require` encrypts the link but
+authenticates nothing, so it does not stop an interception.
+
+Prisma Migrate is the awkward case. It takes a session-scoped advisory lock, and
+Neon's pooler is PgBouncer in transaction mode, which can drop one. All ten
+migrations do apply through the pooled endpoint on this project, so
+`prisma.config.ts` falls back to `DATABASE_URL` and `DIRECT_URL` is optional —
+documented as the fix if a deploy ever fails on a lock, rather than a required
+second variable nobody understands the reason for.
+
+---
+
+## Client-bundle leaks are checked, not reasoned about
+
+**Date:** 2026-08-28
+
+`scripts/check-client-bundle.mjs` scans the built client chunks for server-only
+markers (`PrismaClient`, `next/headers`, Node built-ins) and for the literal
+value of every non-`NEXT_PUBLIC_` variable in `.env`. It exits non-zero on a
+find, and it was tested against a planted marker so it is known to actually
+fail rather than being a check that always passes.
+
+The audit it replaces found no leak: every `@/lib` import from a client
+component is either a leaf module or `import type`, which is erased. But that is
+exactly the state the project was in when `computeMmFee` sat beside a database
+reader and pulled `dns` into a client bundle — `tsc` and `next build` both
+passed then too. Reading imports is not a check.
+
+One fragile boundary was removed rather than documented: `SearchHit` moved from
+`app/api/search/route.ts` (which imports the database) to `lib/search-types.ts`,
+so the command palette's type import no longer points at a server module at all.
+Two others remain type-only by necessity — `CurrentUser` from `lib/session` and
+`TimerOutcome` from `lib/deal-timers` — and the script is what guards them.

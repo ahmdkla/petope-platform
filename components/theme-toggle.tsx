@@ -52,7 +52,7 @@ export function ThemeToggle() {
       type="button"
       onClick={toggle}
       aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-      className="grid size-9 cursor-pointer place-items-center rounded-md border border-line bg-card text-ink-muted transition-colors duration-200 hover:border-line-strong hover:text-ink"
+      className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border border-line bg-card text-ink-muted transition-colors duration-200 hover:border-line-strong hover:text-ink sm:size-9"
     >
       <Icon aria-hidden className="size-[18px]" strokeWidth={1.75} />
     </button>

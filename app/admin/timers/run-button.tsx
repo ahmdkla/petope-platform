@@ -46,7 +46,8 @@ export function RunTimersButton({ dueCount }: { dueCount: number }) {
         >
           {result.length === 0 ? (
             <p className="text-body text-ink-muted">
-              Nothing was due. No deals changed.
+              Nothing was due, so no deal changed. Deals appear here when a
+              release deadline has passed and the run moves them on.
             </p>
           ) : (
             <ul className="space-y-3">

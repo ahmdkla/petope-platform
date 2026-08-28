@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { BadgeCheck, ShieldAlert } from "lucide-react";
 import { Avatar, Badge, Card, Note, SectionTitle } from "@/components/ui";
+import { isOnShift } from "@/lib/shifts";
 import type { ActorRole } from "@/lib/deal-transitions";
 
 type Party = {
   id: string;
   displayName: string | null;
   isVerifiedMm: boolean;
+  /** Middlemen only; buyers and sellers do not keep shifts. */
+  workingHoursUtc?: string | null;
 } | null;
 
 export function Participants({
@@ -28,6 +31,7 @@ export function Participants({
           party={deal.middleman}
           isYou={viewerRole === "MIDDLEMAN"}
           emptyText="Not yet claimed"
+          showShift
         />
       </ul>
 
@@ -54,11 +58,13 @@ function Party({
   party,
   isYou,
   emptyText,
+  showShift,
 }: {
   label: string;
   party: Party;
   isYou: boolean;
   emptyText?: string;
+  showShift?: boolean;
 }) {
   if (!party) {
     return (
@@ -81,7 +87,11 @@ function Party({
 
   return (
     <li className="flex items-center gap-3">
-      <Avatar name={party.displayName ?? "??"} seed={party.id} />
+      <Avatar
+        name={party.displayName ?? "??"}
+        seed={party.id}
+        onShift={showShift ? isOnShift(party.workingHoursUtc ?? null) : undefined}
+      />
       <span className="min-w-0 flex-1">
         <span className="block text-meta text-ink-faint">{label}</span>
         <Link

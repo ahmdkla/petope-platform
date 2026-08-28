@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Receipt } from "lucide-react";
 import { db } from "@/lib/db";
 import { getMmFeeConfig } from "@/lib/admin-settings";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { Badge, Card, EmptyState, Note } from "@/components/ui";
+import { DealReference } from "@/components/deal-reference";
 import { formatMoney } from "@/lib/money";
 import { RefundForm } from "./refund-form";
 
@@ -50,7 +50,10 @@ export default async function FeeRefundsPage() {
           </Note>
 
           {closed.length === 0 ? (
-            <EmptyState icon={Receipt} message="No closed deals carrying a fee." />
+            <EmptyState
+              icon={Receipt}
+              message="No deals have closed with a fee taken. Completed, refunded and cancelled deals appear here for 24 hours, which is the whole window a fee refund can be issued in."
+            />
           ) : (
             <ul className="space-y-3">
               {closed.map((d) => {
@@ -71,12 +74,10 @@ export default async function FeeRefundsPage() {
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <Link
+                            <DealReference
+                              reference={d.reference}
                               href={`/deals/${d.id}`}
-                              className="font-mono text-meta font-medium text-accent-text underline underline-offset-2"
-                            >
-                              {d.reference}
-                            </Link>
+                            />
                             <Badge tone="neutral">{d.status.toLowerCase()}</Badge>
                             {refunded ? (
                               <Badge tone="ok">Fee refunded</Badge>
