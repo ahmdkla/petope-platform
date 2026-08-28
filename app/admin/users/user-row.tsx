@@ -88,14 +88,14 @@ export function UserRow({
         </Select>
 
         {blacklisted ? (
-          <Button size="sm" variant="secondary" disabled={pending} onClick={doRestore}>
+          <Button size="sm" variant="secondary" pending={pending} onClick={doRestore}>
             Restore
           </Button>
         ) : (
           <Button
             size="sm"
             variant="danger"
-            disabled={pending || isSelf}
+            pending={pending} disabled={isSelf}
             onClick={() => setConfirming(true)}
           >
             Blacklist
@@ -122,8 +122,8 @@ export function UserRow({
               <Button variant="secondary" onClick={() => setConfirming(false)}>
                 Cancel
               </Button>
-              <Button variant="danger" disabled={pending} onClick={doBlacklist}>
-                {pending ? "Blacklisting" : "Blacklist"}
+              <Button variant="danger" pending={pending} onClick={doBlacklist}>
+                {pending ? "Blacklisting…" : "Blacklist"}
               </Button>
             </>
           }

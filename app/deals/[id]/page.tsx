@@ -298,6 +298,7 @@ export default async function DealRoomPage({
             dealId={deal.id}
             messages={messages}
             currentUserId={user.id}
+            currentUserName={user.displayName}
             readOnly={["COMPLETED", "CANCELLED", "REFUNDED"].includes(deal.status)}
           />
         </div>

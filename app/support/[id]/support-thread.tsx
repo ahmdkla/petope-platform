@@ -176,9 +176,9 @@ export function SupportThread({
           </p>
           <FormError message={error} />
           <div className="flex justify-end">
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" pending={pending}>
               <Send aria-hidden className="size-4" strokeWidth={2} />
-              {pending ? "Sending" : "Send"}
+              {pending ? "Sending…" : "Send"}
             </Button>
           </div>
         </form>

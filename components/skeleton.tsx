@@ -148,3 +148,79 @@ export function CardSkeleton({ lines = 3 }: { lines?: number }) {
     </div>
   );
 }
+
+/** A page that is a stack of cards: admin queues, support, reports. */
+export function StackSkeleton({
+  cards = 4,
+  lines = 4,
+}: {
+  cards?: number;
+  lines?: number;
+}) {
+  return (
+    <div className="space-y-4">
+      {Array.from({ length: cards }, (_, i) => (
+        <CardSkeleton key={i} lines={lines} />
+      ))}
+    </div>
+  );
+}
+
+/** Matches a `divide-y` list inside one bordered surface. */
+export function ListSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="divide-y divide-line rounded-lg border border-line bg-card shadow-card">
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="flex items-center gap-3 px-4 py-4">
+          <Tile className="size-10" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Bar className="h-4 w-40" />
+            <Bar className="h-4 w-56" />
+          </div>
+          <Bar className="h-6 w-20" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Two-column article layout: FAQs, mints, report, vouches. */
+export function ArticleSkeleton({
+  blocks = 5,
+  asideLines = 5,
+}: {
+  blocks?: number;
+  asideLines?: number;
+}) {
+  return (
+    <div className="grid max-w-5xl gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="space-y-6">
+        {Array.from({ length: blocks }, (_, i) => (
+          <div key={i} className="space-y-2.5">
+            <Bar className="h-5 w-52" />
+            <Bar className="h-4 w-full" />
+            <Bar className="h-4 w-11/12" />
+            <Bar className="h-4 w-3/4" />
+          </div>
+        ))}
+      </div>
+      <CardSkeleton lines={asideLines} />
+    </div>
+  );
+}
+
+/** Form pages: profile, new listing, settings. */
+export function FormSkeleton({ fields = 5 }: { fields?: number }) {
+  return (
+    <div className="max-w-2xl space-y-5 rounded-lg border border-line bg-card p-6 shadow-card">
+      <Bar className="h-5 w-40" />
+      {Array.from({ length: fields }, (_, i) => (
+        <div key={i} className="space-y-1.5">
+          <Bar className="h-4 w-28" />
+          <Bar className="h-field w-full" />
+        </div>
+      ))}
+      <Bar className="h-field w-32" />
+    </div>
+  );
+}

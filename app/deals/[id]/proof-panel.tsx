@@ -324,10 +324,10 @@ function VerifyDialog({
           </Button>
           <Button
             variant={confirming ? "primary" : "danger"}
-            disabled={pending}
+            pending={pending}
             onClick={submit}
           >
-            {pending ? "Recording" : confirming ? "Confirm payment" : "Reject proof"}
+            {pending ? "Recording…" : confirming ? "Confirm payment" : "Reject proof"}
           </Button>
         </>
       }
@@ -493,8 +493,8 @@ function SubmitForm({
 
       <FormError message={error} />
 
-      <Button type="submit" disabled={pending}>
-        {pending ? "Submitting" : "Submit for review"}
+      <Button type="submit" pending={pending}>
+        {pending ? "Submitting…" : "Submit for review"}
       </Button>
     </form>
   );

@@ -64,8 +64,8 @@ export function NewTicketButton() {
               <Button variant="secondary" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button form="ticket-form" type="submit" disabled={pending}>
-                {pending ? "Opening" : "Open room"}
+              <Button form="ticket-form" type="submit" pending={pending}>
+                {pending ? "Opening…" : "Open room"}
               </Button>
             </>
           }

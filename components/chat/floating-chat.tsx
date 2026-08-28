@@ -2,7 +2,15 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { MessageSquare, Send, Bot, ExternalLink, Minus, X } from "lucide-react";
+import {
+  MessageSquare,
+  Send,
+  Bot,
+  ExternalLink,
+  Minus,
+  X,
+  Loader2,
+} from "lucide-react";
 import { useChatRooms, type ChatMessage } from "./use-chat-rooms";
 import { postMessage } from "@/app/deals/[id]/actions";
 import { Avatar } from "@/components/ui";
@@ -261,10 +269,19 @@ function RoomView({
           <button
             type="submit"
             disabled={pending || !body.trim()}
-            aria-label="Send message"
-            className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-accent-ink transition-all duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label={pending ? "Sending message" : "Send message"}
+            aria-busy={pending || undefined}
+            className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-md bg-accent text-accent-ink transition-all duration-200 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <Send aria-hidden className="size-4" strokeWidth={2} />
+            {pending ? (
+              <Loader2
+                aria-hidden
+                className="size-4 animate-spin motion-reduce:animate-none"
+                strokeWidth={2}
+              />
+            ) : (
+              <Send aria-hidden className="size-4" strokeWidth={2} />
+            )}
           </button>
         </div>
         <p className="text-meta text-ink-faint">

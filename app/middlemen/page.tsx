@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { db } from "@/lib/db";
+import { getRoster } from "@/lib/public-data";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import Link from "next/link";
 import { Avatar, Badge, EmptyState } from "@/components/ui";
@@ -30,22 +30,7 @@ export default async function MiddlemenPage({
   const { filter } = await searchParams;
   const onShiftOnly = filter === "on-shift";
 
-  const middlemen = await db.user.findMany({
-    where: {
-      role: { in: ["MIDDLEMAN", "MAIN_MIDDLEMAN"] },
-      status: "ACTIVE",
-    },
-    select: {
-      id: true,
-      displayName: true,
-      role: true,
-      isVerifiedMm: true,
-      workingHoursUtc: true,
-      tradesSecured: true,
-      _count: { select: { vouchesReceived: true } },
-    },
-    orderBy: [{ role: "asc" }, { tradesSecured: "desc" }],
-  });
+  const middlemen = await getRoster();
 
   // Shift windows are absolute UTC, so this is deterministic server-side and
   // the same for every viewer. The page is already force-dynamic.

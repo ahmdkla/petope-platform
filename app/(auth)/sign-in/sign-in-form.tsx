@@ -65,8 +65,8 @@ export function SignInForm({ next }: { next?: string }) {
 
         <FormError message={error} />
 
-        <Button type="submit" disabled={pending} className="w-full">
-          {pending ? "Signing in" : "Sign in"}
+        <Button type="submit" pending={pending} className="w-full">
+          {pending ? "Signing in…" : "Sign in"}
         </Button>
       </form>
 

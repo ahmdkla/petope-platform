@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { NavLink } from "./nav-link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSyncExternalStore, useCallback } from "react";
 import {
@@ -202,19 +203,17 @@ export function Sidebar({
           return (
             <li key={item.href}>
               <div className="flex items-center gap-1">
-                <Link
+                <NavLink
                   href={item.href}
-                  onClick={onNavigate}
-                  aria-current={onSection ? "page" : undefined}
-                  className={`flex h-11 flex-1 items-center gap-3 rounded-md px-3 text-body transition-colors duration-200 ${
-                    onSection
-                      ? "bg-accent-soft font-medium text-accent-text"
-                      : "text-ink-muted hover:bg-raised hover:text-ink"
-                  }`}
+                  onNavigate={onNavigate}
+                  active={onSection}
+                  className="h-11 flex-1 text-body"
+                  activeClass="bg-accent-soft font-medium text-accent-text"
+                  idleClass="text-ink-muted hover:bg-raised hover:text-ink"
                 >
                   <Icon aria-hidden className="size-[18px] shrink-0" strokeWidth={1.75} />
                   {item.label}
-                </Link>
+                </NavLink>
 
                 {item.children ? (
                   <button
@@ -239,18 +238,16 @@ export function Sidebar({
                     const active = child.match(pathname, params);
                     return (
                       <li key={child.href}>
-                        <Link
+                        <NavLink
                           href={child.href}
-                          onClick={onNavigate}
-                          aria-current={active ? "page" : undefined}
-                          className={`flex h-11 items-center rounded-md px-3 text-meta transition-colors duration-200 ${
-                            active
-                              ? "bg-raised font-medium text-ink"
-                              : "text-ink-faint hover:bg-raised hover:text-ink-muted"
-                          }`}
+                          onNavigate={onNavigate}
+                          active={active}
+                          className="block h-11 text-meta"
+                          activeClass="bg-raised font-medium text-ink"
+                          idleClass="text-ink-faint hover:bg-raised hover:text-ink-muted"
                         >
                           {child.label}
-                        </Link>
+                        </NavLink>
                       </li>
                     );
                   })}

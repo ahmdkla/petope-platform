@@ -99,8 +99,8 @@ export function VouchPanel({
           per person per deal.
         </Hint>
         <FormError message={error} />
-        <Button type="submit" disabled={pending}>
-          {pending ? "Posting" : "Post vouch"}
+        <Button type="submit" pending={pending}>
+          {pending ? "Posting…" : "Post vouch"}
         </Button>
       </form>
 

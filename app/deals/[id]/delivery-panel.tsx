@@ -106,7 +106,7 @@ function Handover({
                 <Button
                   variant="secondary"
                   size="sm"
-                  disabled={pending}
+                  pending={pending}
                   onClick={() => declare(false)}
                 >
                   Withdraw acknowledgement
@@ -114,8 +114,8 @@ function Handover({
               ) : null}
             </>
           ) : (
-            <Button disabled={pending} onClick={() => declare(true)}>
-              {pending ? "Recording" : "The handover has happened"}
+            <Button pending={pending} onClick={() => declare(true)}>
+              {pending ? "Recording…" : "The handover has happened"}
             </Button>
           )}
           <FormError message={error} />
@@ -162,8 +162,8 @@ function Receipt({ deal, role }: { deal: Deal; role: ActorRole }) {
             Check that you received exactly what the terms describe before
             confirming. Confirming lets the middleman release the funds.
           </p>
-          <Button disabled={pending} onClick={confirm}>
-            {pending ? "Recording" : "Confirm I received it"}
+          <Button pending={pending} onClick={confirm}>
+            {pending ? "Recording…" : "Confirm I received it"}
           </Button>
           <FormError message={error} />
         </>

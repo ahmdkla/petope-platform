@@ -15,8 +15,20 @@ if (!connectionString) {
 
 const adapter = new PrismaPg({ connectionString });
 
-// Reuse the client across hot reloads in dev; a new one per reload exhausts
-// the connection pool.
+/**
+ * One client per process, pinned to `globalThis`.
+ *
+ * In development this survives hot reloads, which would otherwise construct a
+ * client per edit and exhaust the connection pool. In production it matters for
+ * a different reason: Next.js can bundle this module into more than one server
+ * chunk, and a plain module-level constant would then give each chunk its own
+ * client and its own pool. On serverless, where instances are already many,
+ * that multiplies connections against a database that will refuse them.
+ *
+ * Pinning in both environments makes "one client per instance" true rather than
+ * merely likely. A serverless instance is reused across invocations, so this is
+ * also what stops a connection being opened per request.
+ */
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 export const db =
@@ -26,4 +38,4 @@ export const db =
     log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
   });
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db;
+globalForPrisma.prisma = db;

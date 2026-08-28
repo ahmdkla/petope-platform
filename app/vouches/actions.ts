@@ -1,6 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { TAGS } from "@/lib/public-data";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentUser, type CurrentUser } from "@/lib/session";
@@ -23,6 +24,8 @@ export async function leaveVouch(input: unknown): Promise<ActionResult> {
   if (res.ok) {
     revalidatePath("/vouches");
     revalidatePath("/middlemen");
+    revalidateTag(TAGS.vouches, "max");
+    revalidateTag(TAGS.middlemen, "max");
   }
   return res;
 }

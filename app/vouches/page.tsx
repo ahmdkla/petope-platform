@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { MessageSquareQuote, BadgeCheck } from "lucide-react";
-import { db } from "@/lib/db";
+import { getVouches, getVouchFilterRoster } from "@/lib/public-data";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { Avatar, Badge, Card, EmptyState, Note, SectionTitle } from "@/components/ui";
 import { isOnShift } from "@/lib/shifts";
@@ -21,37 +21,8 @@ export default async function VouchesPage({
   const { mm } = await searchParams;
 
   const [vouches, middlemen] = await Promise.all([
-    db.vouch.findMany({
-      where: {
-        ...(mm ? { middlemanId: mm } : {}),
-        // Test-suite deals never surface publicly.
-        deal: { isTest: false },
-      },
-      include: {
-        author: { select: { id: true, displayName: true } },
-        middleman: {
-          select: {
-            id: true,
-            displayName: true,
-            isVerifiedMm: true,
-            workingHoursUtc: true,
-          },
-        },
-        deal: { select: { projectName: true, reference: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 60,
-    }),
-    db.user.findMany({
-      where: { role: { in: ["MIDDLEMAN", "MAIN_MIDDLEMAN"] }, status: "ACTIVE" },
-      select: {
-        id: true,
-        displayName: true,
-        isVerifiedMm: true,
-        _count: { select: { vouchesReceived: true } },
-      },
-      orderBy: { displayName: "asc" },
-    }),
+    getVouches(mm),
+    getVouchFilterRoster(),
   ]);
 
   const filtered = middlemen.find((m) => m.id === mm);

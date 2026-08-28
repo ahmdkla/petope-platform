@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { CalendarDays } from "lucide-react";
-import { db } from "@/lib/db";
+import { getMintEvents } from "@/lib/public-data";
 import { getCurrentUser, isMiddleman } from "@/lib/session";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { Badge, Card, EmptyState, Note, SectionTitle } from "@/components/ui";
@@ -17,10 +17,7 @@ export default async function MintsPage() {
   const user = await getCurrentUser();
   const canEdit = user ? isMiddleman(user.role) : false;
 
-  const events = await db.mintEvent.findMany({
-    include: { _count: { select: { deals: true } } },
-    orderBy: { mintAt: "asc" },
-  });
+  const events = await getMintEvents();
 
   const now = new Date();
   const upcoming = events.filter((e) => e.mintAt >= now);

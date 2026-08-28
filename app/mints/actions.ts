@@ -1,6 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { TAGS } from "@/lib/public-data";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentUser, isMiddleman, type CurrentUser } from "@/lib/session";
@@ -19,7 +20,10 @@ export async function createMintEvent(input: unknown): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "You must be signed in." };
   const res = await createMintEventAsUser(user, input);
-  if (res.ok) revalidatePath("/mints");
+  if (res.ok) {
+    revalidatePath("/mints");
+    revalidateTag(TAGS.mints, "max");
+  }
   return res;
 }
 
@@ -66,6 +70,7 @@ export async function rescheduleMintEvent(
   if (res.ok) {
     revalidatePath("/mints");
     revalidatePath("/deals");
+    revalidateTag(TAGS.mints, "max");
   }
   return res;
 }

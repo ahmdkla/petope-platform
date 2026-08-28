@@ -79,7 +79,7 @@ export function ActionPanel({
               variant={
                 t.destructive ? "danger" : t.id === primary?.id ? "primary" : "secondary"
               }
-              disabled={pending || Boolean(t.blockedReason)}
+              pending={pending} disabled={Boolean(t.blockedReason)}
               onClick={() => setConfirming(t)}
               className="w-full"
             >
@@ -110,10 +110,10 @@ export function ActionPanel({
               </Button>
               <Button
                 variant={confirming.destructive ? "danger" : "primary"}
-                disabled={pending}
+                pending={pending}
                 onClick={() => run(confirming.id)}
               >
-                {pending ? "Working" : confirming.label}
+                {pending ? "Working…" : confirming.label}
               </Button>
             </>
           }

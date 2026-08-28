@@ -106,8 +106,8 @@ export function SignUpForm() {
 
         <FormError message={error} />
 
-        <Button type="submit" disabled={pending} className="w-full">
-          {pending ? "Creating account" : "Create account"}
+        <Button type="submit" pending={pending} className="w-full">
+          {pending ? "Creating account…" : "Create account"}
         </Button>
       </form>
 

@@ -165,8 +165,8 @@ export function ReportForm() {
 
         <FormError message={error} />
 
-        <Button type="submit" disabled={pending}>
-          {pending ? "Filing" : "File report"}
+        <Button type="submit" pending={pending}>
+          {pending ? "Filing…" : "File report"}
         </Button>
       </form>
     </Card>

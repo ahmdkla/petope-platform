@@ -1,6 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
+import { TAGS } from "@/lib/public-data";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentUser, type CurrentUser } from "@/lib/session";
@@ -115,6 +116,7 @@ export async function reviewReport(input: unknown): Promise<ActionResult> {
   if (res.ok) {
     revalidatePath("/admin/reports");
     revalidatePath("/blacklist");
+    revalidateTag(TAGS.blacklist, "max");
   }
   return res;
 }

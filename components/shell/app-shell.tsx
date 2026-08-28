@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import Link from "next/link";
+import { RouteChangeProgress } from "./route-progress";
 import { Sidebar } from "./sidebar";
 import { MobileNav } from "./mobile-nav";
 import { UserMenu } from "./user-menu";
@@ -21,6 +23,13 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           showAdmin={user?.role === "ADMIN" || user?.role === "MAIN_MIDDLEMAN"}
         />
       </div>
+
+      {/* Covers navigations that do not originate from a <Link> — router.push
+          from the filters, the command palette, a redirect after an action.
+          Link clicks get the earlier, click-time bar from NavLink. */}
+      <Suspense fallback={null}>
+        <RouteChangeProgress />
+      </Suspense>
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-16 shrink-0 items-center gap-3 border-b border-line bg-card px-4 sm:px-6">

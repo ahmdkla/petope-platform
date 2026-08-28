@@ -23,8 +23,8 @@ export function ClaimButton({ dealId }: { dealId: string }) {
 
   return (
     <div className="text-right">
-      <Button disabled={pending} onClick={claim}>
-        {pending ? "Claiming" : "Claim"}
+      <Button pending={pending} onClick={claim}>
+        {pending ? "Claiming…" : "Claim"}
       </Button>
       {error ? (
         <p role="alert" className="mt-1.5 max-w-48 text-meta text-danger">

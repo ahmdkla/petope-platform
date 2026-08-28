@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ChevronDown, LogOut, User as UserIcon } from "lucide-react";
+import { ChevronDown, LogOut, Loader2, User as UserIcon } from "lucide-react";
 import { Avatar } from "@/components/ui";
 import { signOut } from "@/lib/auth-client";
 import type { CurrentUser } from "@/lib/session";
@@ -96,10 +96,19 @@ export function UserMenu({ user }: { user: CurrentUser }) {
               role="menuitem"
               onClick={handleSignOut}
               disabled={pending}
-              className="flex h-11 w-full cursor-pointer items-center gap-2.5 px-4 text-left text-body text-ink-muted transition-colors duration-200 hover:bg-raised hover:text-ink disabled:opacity-50"
+              aria-busy={pending || undefined}
+              className="flex h-11 w-full cursor-pointer items-center gap-2.5 px-4 text-left text-body text-ink-muted transition-colors duration-200 hover:bg-raised hover:text-ink disabled:opacity-60"
             >
-              <LogOut aria-hidden className="size-4" strokeWidth={1.75} />
-              {pending ? "Signing out" : "Sign out"}
+              {pending ? (
+                <Loader2
+                  aria-hidden
+                  className="size-4 animate-spin motion-reduce:animate-none"
+                  strokeWidth={2}
+                />
+              ) : (
+                <LogOut aria-hidden className="size-4" strokeWidth={1.75} />
+              )}
+              {pending ? "Signing out…" : "Sign out"}
             </button>
           </div>
         </div>

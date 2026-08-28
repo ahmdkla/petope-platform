@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import type { LucideIcon } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 /**
  * Shared primitives. Cards are encouraged as distinct surfaces; borders and
@@ -61,10 +62,25 @@ export function Button({
   className = "",
   variant = "primary",
   size = "md",
+  pending = false,
+  pendingLabel,
+  children,
   ...props
 }: ComponentProps<"button"> & {
   variant?: "primary" | "secondary" | "ghost" | "danger";
   size?: "sm" | "md";
+  /**
+   * The action this button started has not come back yet. Disables the button,
+   * swaps in a spinner and, if given, the `pendingLabel`.
+   *
+   * A spinner belongs here and almost nowhere else: it marks work the person
+   * just asked for, on the control they pressed. Page-level spinners are a
+   * different thing and the Design Direction rules them out — pages get
+   * skeletons.
+   */
+  pending?: boolean;
+  /** "Confirming…" while `children` stays "Confirm". */
+  pendingLabel?: string;
 }) {
   // Amber is the brand anchor and is used confidently on primary actions.
   const styles = {
@@ -83,11 +99,24 @@ export function Button({
 
   return (
     <button
+      // aria-busy, not just disabled: a screen reader should hear that the work
+      // is in flight rather than that the control went away.
+      aria-busy={pending || undefined}
+      disabled={pending || props.disabled}
       className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-md
         font-medium transition-all duration-200 disabled:cursor-not-allowed
-        disabled:opacity-50 ${sizing} ${styles} ${className}`}
+        disabled:opacity-60 ${sizing} ${styles} ${className}`}
       {...props}
-    />
+    >
+      {pending ? (
+        <Loader2
+          aria-hidden
+          className="size-4 shrink-0 animate-spin motion-reduce:animate-none"
+          strokeWidth={2}
+        />
+      ) : null}
+      {pending && pendingLabel ? pendingLabel : children}
+    </button>
   );
 }
 

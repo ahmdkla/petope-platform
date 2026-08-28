@@ -61,7 +61,7 @@ export function ListingActions({
         <Button
           size="sm"
           variant="danger"
-          disabled={pending || status === "SOLD_OUT"}
+          pending={pending} disabled={status === "SOLD_OUT"}
           onClick={() => setConfirmDelist(true)}
           title={status === "SOLD_OUT" ? "This listing is sold out" : undefined}
         >
@@ -73,7 +73,7 @@ export function ListingActions({
             <Button
               size="sm"
               variant="secondary"
-              disabled={pending || !signedIn}
+              pending={pending} disabled={!signedIn}
               onClick={() => setOfferOpen(true)}
             >
               Offer
@@ -82,7 +82,7 @@ export function ListingActions({
 
           <Button
             size="sm"
-            disabled={pending || unavailable || !signedIn}
+            pending={pending} disabled={unavailable || !signedIn}
             onClick={() =>
               // A for-all listing cannot be split, and a single remaining spot
               // needs no choosing — skip straight to the deal in both cases.
@@ -111,7 +111,7 @@ export function ListingActions({
               </Button>
               <Button
                 variant="danger"
-                disabled={pending}
+                pending={pending}
                 onClick={() =>
                   run(async () => {
                     const r = await delistListing(listingId);
@@ -120,7 +120,7 @@ export function ListingActions({
                   })
                 }
               >
-                {pending ? "Delisting" : "Delist"}
+                {pending ? "Delisting…" : "Delist"}
               </Button>
             </>
           }
@@ -200,8 +200,8 @@ function OfferDialog({
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button form="offer-form" type="submit" disabled={pending}>
-            {pending ? "Sending" : "Send offer"}
+          <Button form="offer-form" type="submit" pending={pending}>
+            {pending ? "Sending…" : "Send offer"}
           </Button>
         </>
       }
@@ -281,8 +281,8 @@ function SpotsDialog({
           <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button form="spots-form" type="submit" disabled={pending}>
-            {pending ? "Opening deal" : "Open deal"}
+          <Button form="spots-form" type="submit" pending={pending}>
+            {pending ? "Opening deal…" : "Open deal"}
           </Button>
         </>
       }

@@ -581,3 +581,105 @@ One fragile boundary was removed rather than documented: `SearchHit` moved from
 so the command palette's type import no longer points at a server module at all.
 Two others remain type-only by necessity — `CurrentUser` from `lib/session` and
 `TimerOutcome` from `lib/deal-timers` — and the script is what guards them.
+
+---
+
+## Neon's free tier suspends compute; the first request after idle is slow
+
+**Date:** 2026-08-29
+
+Neon scales a free-tier project's compute to zero after a few minutes without a
+connection, and the next query has to wait for it to resume — typically a few
+hundred milliseconds, sometimes seconds. **No amount of application work removes
+this.** It is the first thing to suspect when someone reports that the demo "was
+slow" once and fine afterwards, and it is why the numbers below are all measured
+warm.
+
+Anything that genuinely helps is outside the app: keeping a paid instance warm,
+a scheduled ping, or accepting it as a property of a demo deployment. What the
+app can do is not make it worse — every measurement in this section was taken
+after warming, so the figures reflect code rather than cold start.
+
+---
+
+## One session read per request, not four
+
+**Date:** 2026-08-29
+
+The app felt slow because it was doing the same query repeatedly. Rendering one
+protected page hit the database for the *same session* up to four times:
+`proxy.ts`, then `app/admin/layout.tsx`, then the page, then `AppShell` — none
+of which can see that another already asked.
+
+`getCurrentUser` is now wrapped in React's `cache()`, which dedupes for the
+lifetime of one request. That collapses the three render-time reads into one;
+the proxy runs before rendering in its own context, so its check stays separate
+by design.
+
+This is per-request memoisation, **not** a TTL cache. A revoked or blacklisted
+session is still rejected on the very next request — the property database
+sessions were chosen for in the first place, and the one that must not be traded
+for speed.
+
+Measured, warm, production build, medians over five runs:
+
+| Route | Before | After |
+|---|---|---|
+| `/listings` | 293ms | 206ms |
+| `/deals` | 285ms | 221ms |
+| `/` | 223ms | 165ms |
+| `/mints` | 186ms | 84ms |
+| `/vouches` | 149ms | 80ms |
+
+Nothing now exceeds 300ms server-side. The remaining floor of ~80ms is one
+session round trip to Neon plus render.
+
+---
+
+## Public pages cache the query, not the route
+
+**Date:** 2026-08-29
+
+The roster, vouch feed, mint schedule and blacklist do not depend on who is
+looking, so they should not query per visitor. `export const revalidate` cannot
+deliver that here: every page renders `<AppShell>`, `AppShell` reads the session,
+and reading the session opts the whole route into dynamic rendering. The
+route-level knob has nothing to act on.
+
+`lib/public-data.ts` caches the **queries** instead, with `unstable_cache`, a
+60-second window and a tag per dataset. The session stays per-request and
+correct while the database work happens once a minute. Writes call
+`revalidateTag(..., 'max')` alongside their existing `revalidatePath`, because
+the two caches are separate — busting the route without the tag would re-render
+fresh markup from stale rows.
+
+The FAQ page is left alone: it has no database work at all, so its ~90ms is the
+session read, and caching nothing would save nothing.
+
+---
+
+## SECURITY: a layout `redirect()` does not stop the page rendering
+
+**Date:** 2026-08-29 · **Found while doing performance work**
+
+`app/admin/layout.tsx` gated the admin subtree with `redirect()`. That is not an
+authorization boundary. In the App Router a layout and its child render
+together, so the response still carries the child's payload.
+
+Measured on the committed code: a plain `USER` requesting `/admin/settings` got
+a 307 whose **body contained 14KB of rendered admin RSC payload, including the
+fee configuration**. Adding a `loading.tsx` anywhere above the segment made it
+strictly worse — a Suspense boundary means streaming starts before the layout
+resolves, so the redirect degraded to a **200 with the full 114KB admin page**.
+This surfaced only because the perf work added a root `loading.tsx`; the leak
+itself predates it.
+
+Role checks now live in `proxy.ts`, which runs before any rendering, alongside
+the existing session and blacklist checks. A rejected request is a 1-byte 307
+with no privileged content. The layout check stays as defence in depth.
+
+Verified per role: `USER` → 307 on `/admin/*` and `/queue`; `MIDDLEMAN` → 200 on
+`/queue`, 307 on `/admin/*`; `ADMIN` → 200 on both; signed out → 307 on all.
+
+**The rule: authorization belongs in `proxy.ts`. A check inside a layout or page
+runs too late to stop the data being rendered.**

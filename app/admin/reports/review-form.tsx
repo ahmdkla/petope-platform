@@ -85,10 +85,10 @@ export function ReviewForm({
       <FormError message={error} />
 
       <div className="flex flex-wrap gap-3">
-        <Button variant="danger" disabled={pending} onClick={() => decide("uphold")}>
-          {pending ? "Recording" : blacklist ? "Uphold and blacklist" : "Uphold"}
+        <Button variant="danger" pending={pending} onClick={() => decide("uphold")}>
+          {pending ? "Recording…" : blacklist ? "Uphold and blacklist" : "Uphold"}
         </Button>
-        <Button variant="secondary" disabled={pending} onClick={() => decide("dismiss")}>
+        <Button variant="secondary" pending={pending} onClick={() => decide("dismiss")}>
           Dismiss
         </Button>
       </div>

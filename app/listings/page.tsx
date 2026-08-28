@@ -55,47 +55,54 @@ export default async function ListingsPage({
     ...(sp.q ? { item: { contains: sp.q, mode: "insensitive" as const } } : {}),
   };
 
-  const [listings, chains, buyCount, sellCount] = await Promise.all([
-    db.listing.findMany({
-      where,
-      include: { author: { select: { id: true, displayName: true, isVerifiedMm: true } } },
-      // Promoted (prem-listing) first, then newest.
-      orderBy: [{ promoted: "desc" }, { createdAt: "desc" }],
-      take: 100,
-    }),
-    db.listing.findMany({
-      where: { status: { in: ["ACTIVE", "SOLD_OUT"] }, isTest: false },
-      select: { chain: true },
-      distinct: ["chain"],
-      orderBy: { chain: "asc" },
-    }),
-    db.listing.count({ where: { side: "BUY", status: { in: ["ACTIVE", "SOLD_OUT"] }, isTest: false } }),
-    db.listing.count({ where: { side: "SELL", status: { in: ["ACTIVE", "SOLD_OUT"] }, isTest: false } }),
-  ]);
+  /**
+   * One wave, not three.
+   *
+   * These used to run as three sequential `Promise.all` groups, which is three
+   * network round trips to Neon before the page could render — the groups were
+   * independent, so the waiting was pure loss. Only the demand map genuinely
+   * depends on an earlier result (it needs the listing ids), so it is the one
+   * thing that still waits.
+   */
+  const [listings, chains, allChains, buyCount, sellCount, lastListing, feeConfig] =
+    await Promise.all([
+      db.listing.findMany({
+        where,
+        include: { author: { select: { id: true, displayName: true, isVerifiedMm: true } } },
+        // Promoted (prem-listing) first, then newest.
+        orderBy: [{ promoted: "desc" }, { createdAt: "desc" }],
+        take: 100,
+      }),
+      db.listing.findMany({
+        where: { status: { in: ["ACTIVE", "SOLD_OUT"] }, isTest: false },
+        select: { chain: true },
+        distinct: ["chain"],
+        orderBy: { chain: "asc" },
+      }),
+      db.listing.findMany({
+        select: { chain: true },
+        distinct: ["chain"],
+        orderBy: { chain: "asc" },
+      }),
+      db.listing.count({ where: { side: "BUY", status: { in: ["ACTIVE", "SOLD_OUT"] }, isTest: false } }),
+      db.listing.count({ where: { side: "SELL", status: { in: ["ACTIVE", "SOLD_OUT"] }, isTest: false } }),
+      // The modal needs the same prefill the standalone route uses.
+      user
+        ? db.listing.findFirst({
+            where: { authorId: user.id },
+            orderBy: { createdAt: "desc" },
+            select: { side: true, chain: true, payment: true, specific: true, type: true },
+          })
+        : Promise.resolve(null),
+      getMmFeeConfig(),
+    ]);
 
-  // The modal needs the same prefill the standalone route uses.
-  const [lastListing, allChains] = await Promise.all([
-    user
-      ? db.listing.findFirst({
-          where: { authorId: user.id },
-          orderBy: { createdAt: "desc" },
-          select: { side: true, chain: true, payment: true, specific: true, type: true },
-        })
-      : Promise.resolve(null),
-    db.listing.findMany({
-      select: { chain: true },
-      distinct: ["chain"],
-      orderBy: { chain: "asc" },
-    }),
-  ]);
   const formChains = allChains.map((c) => c.chain);
   const formDefaults = lastListing ?? null;
 
-  // Batched so the feed does not fire two queries per card.
-  const [demandMap, feeConfig] = await Promise.all([
-    getListingDemandMap(listings.map((l) => l.id)),
-    getMmFeeConfig(),
-  ]);
+  // Needs the ids above, so this is the only genuine second round trip. Batched
+  // so the feed does not fire two queries per card.
+  const demandMap = await getListingDemandMap(listings.map((l) => l.id));
 
   const filtered = Boolean(sp.chain || (sp.type && sp.type !== "ALL") || (sp.specific && sp.specific !== "ALL") || sp.q);
 

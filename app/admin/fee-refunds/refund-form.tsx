@@ -50,8 +50,8 @@ export function RefundForm({ dealId }: { dealId: string }) {
       </div>
       <FormError message={error} />
       <div className="flex gap-3">
-        <Button type="submit" size="sm" disabled={pending}>
-          {pending ? "Refunding" : "Refund fee"}
+        <Button type="submit" size="sm" pending={pending}>
+          {pending ? "Refunding…" : "Refund fee"}
         </Button>
         <Button type="button" size="sm" variant="secondary" onClick={() => setOpen(false)}>
           Cancel

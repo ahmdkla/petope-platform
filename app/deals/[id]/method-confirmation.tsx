@@ -103,7 +103,7 @@ function ConfirmationState({
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={pending}
+                pending={pending}
                 onClick={() => setConfirmed(false)}
               >
                 Withdraw confirmation
@@ -115,8 +115,8 @@ function ConfirmationState({
                 Read the method notes in the terms card above, then confirm that
                 this is the flow you are agreeing to.
               </p>
-              <Button disabled={pending} onClick={() => setConfirmed(true)}>
-                {pending ? "Confirming" : "Confirm this method"}
+              <Button pending={pending} onClick={() => setConfirmed(true)}>
+                {pending ? "Confirming…" : "Confirm this method"}
               </Button>
             </>
           )}
@@ -317,8 +317,8 @@ function ProposeTerms({
       <FormError message={error} />
 
       <div className="flex gap-3">
-        <Button type="submit" disabled={pending}>
-          {pending ? "Saving" : deal.method ? "Update terms" : "Propose terms"}
+        <Button type="submit" pending={pending}>
+          {pending ? "Saving…" : deal.method ? "Update terms" : "Propose terms"}
         </Button>
         {deal.method ? (
           <Button type="button" variant="secondary" onClick={() => setOpen(false)}>

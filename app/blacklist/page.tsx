@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ShieldBan, ShieldAlert } from "lucide-react";
-import { db } from "@/lib/db";
+import { getBlacklist } from "@/lib/public-data";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { Avatar, Badge, EmptyState, Note } from "@/components/ui";
 
@@ -20,17 +20,7 @@ export default async function BlacklistPage() {
    * before a decision would make the platform the publisher of an unverified
    * accusation — the same harm the impersonation work exists to reduce.
    */
-  const blacklisted = await db.user.findMany({
-    where: { status: "BLACKLISTED" },
-    select: {
-      id: true,
-      displayName: true,
-      discordUsername: true,
-      blacklistReason: true,
-      blacklistedAt: true,
-    },
-    orderBy: { blacklistedAt: "desc" },
-  });
+  const blacklisted = await getBlacklist();
 
   return (
     <AppShell>

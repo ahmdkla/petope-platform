@@ -91,8 +91,8 @@ export function RulingForm({ dealId }: { dealId: string }) {
       <FormError message={error} />
 
       <div className="flex gap-3">
-        <Button type="submit" disabled={pending}>
-          {pending ? "Recording" : "Record ruling"}
+        <Button type="submit" pending={pending}>
+          {pending ? "Recording…" : "Record ruling"}
         </Button>
         <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
           Cancel

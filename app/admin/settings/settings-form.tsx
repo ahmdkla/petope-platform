@@ -114,8 +114,8 @@ export function SettingsForm({ initial }: { initial: Values }) {
         <FormError message={error} />
 
         <div className="flex items-center gap-3">
-          <Button type="submit" disabled={pending}>
-            {pending ? "Saving" : "Save settings"}
+          <Button type="submit" pending={pending}>
+            {pending ? "Saving…" : "Save settings"}
           </Button>
           {saved ? (
             <span className="flex items-center gap-1.5 text-meta text-ok">

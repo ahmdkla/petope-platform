@@ -453,8 +453,8 @@ export function ListingForm({
       <FormError message={error} />
 
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={pending}>
-          {pending ? "Posting" : "Post listing"}
+        <Button type="submit" pending={pending}>
+          {pending ? "Posting…" : "Post listing"}
         </Button>
         <Button
           type="button"

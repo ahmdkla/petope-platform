@@ -28,9 +28,9 @@ export function RunTimersButton({ dueCount }: { dueCount: number }) {
 
   return (
     <>
-      <Button disabled={pending} onClick={run}>
+      <Button pending={pending} onClick={run}>
         <Play aria-hidden className="size-4" strokeWidth={2} />
-        {pending ? "Running" : `Run due timers${dueCount > 0 ? ` (${dueCount})` : ""}`}
+        {pending ? "Running…" : `Run due timers${dueCount > 0 ? ` (${dueCount})` : ""}`}
       </Button>
       <FormError message={error} />
 

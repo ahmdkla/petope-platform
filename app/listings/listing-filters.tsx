@@ -1,5 +1,6 @@
 "use client";
 
+import { useOptimistic, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
 import { Input, Select } from "@/components/ui";
@@ -12,19 +13,47 @@ import { LISTING_TYPE_LABEL } from "@/lib/listing-meta";
 export function ListingFilters({ chains }: { chains: string[] }) {
   const router = useRouter();
   const params = useSearchParams();
-  const q = params.get("q") ?? "";
+  const [pending, startTransition] = useTransition();
+
+  /**
+   * The controls follow the click, not the server.
+   *
+   * `router.push` inside a transition keeps the previous results on screen
+   * while the new ones load, which is the right behaviour for a feed — but it
+   * also means `useSearchParams` still reports the OLD value until the
+   * navigation commits, so a select would visibly snap back to its previous
+   * option for the length of the request. `useOptimistic` holds the chosen
+   * value over that gap; it is reconciled the moment the URL actually changes.
+   *
+   * The URL stays the single source of truth. This only covers the in-flight
+   * window, so a shared or reloaded link still resolves from the query string.
+   */
+  const [optimisticParams, setOptimisticParams] = useOptimistic(
+    params.toString(),
+  );
+  const view = new URLSearchParams(optimisticParams);
+  const q = view.get("q") ?? "";
 
   function apply(key: string, value: string) {
-    const p = new URLSearchParams(params.toString());
+    const p = new URLSearchParams(optimisticParams);
     if (!value || value === "ALL") p.delete(key);
     else p.set(key, value);
-    router.push(`/listings?${p.toString()}`);
+    const next = p.toString();
+    startTransition(() => {
+      setOptimisticParams(next);
+      router.push(`/listings?${next}`);
+    });
   }
 
-  const active = ["chain", "type", "specific", "q"].filter((k) => params.get(k));
+  const active = ["chain", "type", "specific", "q"].filter((k) => view.get(k));
 
   return (
-    <div className="flex flex-wrap items-end gap-3">
+    <div
+      aria-busy={pending || undefined}
+      className={`flex flex-wrap items-end gap-3 transition-opacity duration-200 ${
+        pending ? "opacity-70" : ""
+      }`}
+    >
       {/* Each field takes a full row on a phone and its natural width from
           `sm` up — four 200px controls wrapped at 375px otherwise leave half
           the row empty. */}
@@ -54,7 +83,7 @@ export function ListingFilters({ chains }: { chains: string[] }) {
       <Field label="Project chain" htmlFor="f-chain">
         <Select
           id="f-chain"
-          value={params.get("chain") ?? "ALL"}
+          value={view.get("chain") ?? "ALL"}
           onChange={(e) => apply("chain", e.target.value)}
           className="w-full sm:w-44"
         >
@@ -70,7 +99,7 @@ export function ListingFilters({ chains }: { chains: string[] }) {
       <Field label="Method" htmlFor="f-type">
         <Select
           id="f-type"
-          value={params.get("type") ?? "ALL"}
+          value={view.get("type") ?? "ALL"}
           onChange={(e) => apply("type", e.target.value)}
           className="w-full sm:w-48"
         >
@@ -86,7 +115,7 @@ export function ListingFilters({ chains }: { chains: string[] }) {
       <Field label="Spot type" htmlFor="f-specific">
         <Select
           id="f-specific"
-          value={params.get("specific") ?? "ALL"}
+          value={view.get("specific") ?? "ALL"}
           onChange={(e) => apply("specific", e.target.value)}
           className="w-full sm:w-36"
         >
@@ -100,9 +129,13 @@ export function ListingFilters({ chains }: { chains: string[] }) {
         <button
           type="button"
           onClick={() => {
-            const p = new URLSearchParams(params.toString());
+            const p = new URLSearchParams(optimisticParams);
             active.forEach((k) => p.delete(k));
-            router.push(`/listings?${p.toString()}`);
+            const next = p.toString();
+            startTransition(() => {
+              setOptimisticParams(next);
+              router.push(`/listings?${next}`);
+            });
           }}
           className="flex h-field cursor-pointer items-center gap-1.5 rounded-md border border-line px-3 text-body text-ink-muted transition-colors duration-200 hover:border-line-strong hover:text-ink"
         >

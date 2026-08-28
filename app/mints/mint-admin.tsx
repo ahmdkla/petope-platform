@@ -65,8 +65,8 @@ export function MintAdmin() {
               <Button variant="secondary" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button form="mint-form" type="submit" disabled={pending}>
-                {pending ? "Adding" : "Add mint"}
+              <Button form="mint-form" type="submit" pending={pending}>
+                {pending ? "Adding…" : "Add mint"}
               </Button>
             </>
           }
@@ -204,8 +204,8 @@ export function RescheduleButton({
                 <Button variant="secondary" onClick={() => setOpen(false)}>
                   Cancel
                 </Button>
-                <Button form={`resched-${eventId}`} type="submit" disabled={pending}>
-                  {pending ? "Moving" : "Move the date"}
+                <Button form={`resched-${eventId}`} type="submit" pending={pending}>
+                  {pending ? "Moving…" : "Move the date"}
                 </Button>
               </>
             )
