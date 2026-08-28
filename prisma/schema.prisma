@@ -226,6 +226,14 @@ model User {
   role   UserRole   @default(USER)
   status UserStatus @default(ACTIVE)
 
+  /// Why the account was blacklisted, shown on the public blacklist page.
+  /// `status` records THAT it happened; these record why, by whom and when —
+  /// naming someone publicly without a stated reason would be an unexplained
+  /// accusation.
+  blacklistReason String?
+  blacklistedAt   DateTime?
+  blacklistedById String?
+
   // --- middleman profile fields (null/false for ordinary users) ---
   /// Published working hours, e.g. "09:00-21:00 UTC" or "flexible".
   workingHoursUtc String?
@@ -273,6 +281,15 @@ model User {
   vouchesWritten  Vouch[]          @relation("VouchAuthor")
   vouchesReceived Vouch[]          @relation("VouchMiddleman")
   settingsUpdated AdminSetting[]
+
+  reportsFiled    ScammerReport[] @relation("ReportFiledBy")
+  reportsAgainst  ScammerReport[] @relation("ReportAgainst")
+  reportsReviewed ScammerReport[] @relation("ReportReviewedBy")
+
+  mintEvents      MintEvent[]
+  supportOpened   SupportTicket[]  @relation("SupportOpenedBy")
+  supportAssigned SupportTicket[]  @relation("SupportAssignedTo")
+  supportMessages SupportMessage[]
 
   @@index([role, isVerifiedMm])
   @@index([status])
@@ -439,6 +456,7 @@ model Listing {
   // --- derived / system ---
   /**
    * /**
+   * /**
    * Created by an automated test. Same reasoning as Deal.isTest: a listing
    * referenced by a deal cannot be deleted (onDelete: Restrict), so test
    * fixtures would otherwise sit in the public marketplace forever.
@@ -545,6 +563,12 @@ model Deal {
   /// Nullable and mutable: projects delay, sometimes by months.
   mintAt DateTime?
 
+  /// Optional link to the shared mint calendar. When a project delays, the date
+  /// is corrected once on the MintEvent and propagates to linked deals whose
+  /// release timers have not started yet. Deals past that point keep their
+  /// resolved deadlines — see docs/DECISIONS.md.
+  mintEventId String?
+
   // --- lifecycle timestamps ---
   claimedAt     DateTime?
   termsLockedAt DateTime?
@@ -628,10 +652,13 @@ model Deal {
   /// dispute queue joins on them.
   escalatedBy User?    @relation("DealEscalatedBy", fields: [escalatedById], references: [id], onDelete: Restrict)
 
+  mintEvent MintEvent? @relation(fields: [mintEventId], references: [id], onDelete: Restrict)
+
   proofs   PaymentProof[]
   messages DealMessage[]
   logs     TransactionLog[]
   vouches  Vouch[]
+  reports  ScammerReport[]
 
   @@index([status, createdAt])
   @@index([middlemanId, status])
@@ -811,4 +838,143 @@ model AdminSetting {
   updatedAt   DateTime @updatedAt
 
   updatedBy User? @relation(fields: [updatedById], references: [id], onDelete: Restrict)
+}
+
+// ---------------------------------------------------------------------------
+// Reporting, mints and support
+// ---------------------------------------------------------------------------
+
+/// DM_IMPERSONATION is kept distinct because it is the single most common
+/// attack here: someone posing as a middleman in a direct message. It has a
+/// different shape from an ordinary scam report — often no platform account at
+/// all — and the roster page exists specifically as its counter.
+enum ReportCategory {
+  SCAM
+  DM_IMPERSONATION
+  ALT_ACCOUNT
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  UPHELD
+  DISMISSED
+}
+
+model ScammerReport {
+  id         String @id @default(cuid())
+  reporterId String
+
+  /// The account being reported, when there is one. Null for an off-platform
+  /// impersonator, which is the usual DM_IMPERSONATION case.
+  accusedUserId String?
+  /// Exactly as the reporter typed it. Displayed, never resolved.
+  accusedHandle String
+
+  category    ReportCategory
+  evidence    String
+  /// A link the reviewer opens themselves. No upload service is installed, and
+  /// the server never fetches this.
+  evidenceUrl String?
+  /// Optional deal this relates to.
+  dealId      String?
+
+  status       ReportStatus @default(PENDING)
+  reviewedById String?
+  reviewedAt   DateTime?
+  reviewNote   String?
+
+  createdAt DateTime @default(now())
+
+  reporter    User  @relation("ReportFiledBy", fields: [reporterId], references: [id], onDelete: Restrict)
+  accusedUser User? @relation("ReportAgainst", fields: [accusedUserId], references: [id], onDelete: Restrict)
+  reviewedBy  User? @relation("ReportReviewedBy", fields: [reviewedById], references: [id], onDelete: Restrict)
+  deal        Deal? @relation(fields: [dealId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+  @@index([accusedUserId])
+  @@index([reporterId])
+}
+
+/// Shared calendar of upcoming mints. Deals link here so a project delay can be
+/// entered once rather than edited on every affected deal.
+model MintEvent {
+  id          String   @id @default(cuid())
+  projectName String
+  chain       String
+  mintAt      DateTime
+  note        String?
+  projectLink String?
+
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy User   @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  deals     Deal[]
+
+  @@index([mintAt])
+  @@index([chain])
+}
+
+enum SupportCategory {
+  GENERAL_HELP
+  ACCOUNT_ISSUE
+  ADS_PREMIUM
+  REPORT_PROBLEM
+}
+
+enum SupportStatus {
+  OPEN
+  ASSIGNED
+  RESOLVED
+  CLOSED
+}
+
+/// Support rooms. Same ticket mechanics as a deal room, deliberately with NO
+/// escrow attached: no payment proofs, no lifecycle transitions, no money.
+///
+/// Unlike a deal room this is not a closed three-party space — any middleman or
+/// admin can pick one up, which is how the Discord support category works.
+model SupportTicket {
+  id        String @id @default(cuid())
+  reference String @unique
+
+  openedById String
+  category   SupportCategory
+  subject    String
+  status     SupportStatus   @default(OPEN)
+
+  assignedToId String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  resolvedAt   DateTime?
+
+  openedBy   User             @relation("SupportOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
+  assignedTo User?            @relation("SupportAssignedTo", fields: [assignedToId], references: [id], onDelete: Restrict)
+  messages   SupportMessage[]
+
+  @@index([status, createdAt])
+  @@index([openedById])
+  @@index([assignedToId])
+}
+
+/// Append-only transcript, mirroring DealMessage. No edit or delete columns.
+model SupportMessage {
+  id       String  @id @default(cuid())
+  ticketId String
+  /// Null for system-bot messages.
+  authorId String?
+
+  kind          MessageKind @default(USER)
+  body          String
+  attachmentUrl String?
+
+  createdAt DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  author User?         @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt])
+  @@index([authorId])
 }

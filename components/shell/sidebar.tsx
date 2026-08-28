@@ -4,17 +4,25 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSyncExternalStore, useCallback } from "react";
 import {
+  CalendarDays,
   ChevronRight,
   Gavel,
   Handshake,
   LayoutGrid,
+  LifeBuoy,
+  MessageSquareQuote,
+  CircleHelp,
   ShieldCheck,
   Store,
-  Timer,
+  Wrench,
   type LucideIcon,
 } from "lucide-react";
 
-type SubItem = { href: string; label: string; match: (path: string, q: URLSearchParams) => boolean };
+type SubItem = {
+  href: string;
+  label: string;
+  match: (path: string, q: URLSearchParams) => boolean;
+};
 type NavItem = {
   href: string;
   label: string;
@@ -68,8 +76,39 @@ const PRIMARY: NavItem[] = [
   },
 ];
 
+const SECONDARY: NavItem[] = [
+  { href: "/mints", label: "Mints", icon: CalendarDays },
+  { href: "/vouches", label: "Vouches", icon: MessageSquareQuote },
+  { href: "/support", label: "Support", icon: LifeBuoy },
+  {
+    href: "/faqs",
+    label: "Help",
+    icon: CircleHelp,
+    children: [
+      { href: "/faqs", label: "FAQs", match: (p) => p === "/faqs" },
+      { href: "/report", label: "Report a scammer", match: (p) => p === "/report" },
+      { href: "/blacklist", label: "Blacklist", match: (p) => p === "/blacklist" },
+    ],
+  },
+];
+
 const MIDDLEMAN: NavItem[] = [{ href: "/queue", label: "Queue", icon: Gavel }];
-const ADMIN: NavItem[] = [{ href: "/admin/timers", label: "Timers", icon: Timer }];
+
+const ADMIN: NavItem[] = [
+  {
+    href: "/admin/disputes",
+    label: "Admin",
+    icon: Wrench,
+    children: [
+      { href: "/admin/disputes", label: "Disputes", match: (p) => p.startsWith("/admin/disputes") },
+      { href: "/admin/reports", label: "Reports", match: (p) => p.startsWith("/admin/reports") },
+      { href: "/admin/users", label: "Users", match: (p) => p.startsWith("/admin/users") },
+      { href: "/admin/timers", label: "Timers", match: (p) => p.startsWith("/admin/timers") },
+      { href: "/admin/fee-refunds", label: "Fee refunds", match: (p) => p.startsWith("/admin/fee-refunds") },
+      { href: "/admin/settings", label: "Settings", match: (p) => p.startsWith("/admin/settings") },
+    ],
+  },
+];
 
 /* --- expanded state, persisted ------------------------------------------- */
 
@@ -122,7 +161,13 @@ export function Sidebar({
     [],
   );
 
-  const items = [...PRIMARY, ...(showQueue ? MIDDLEMAN : []), ...(showAdmin ? ADMIN : [])];
+  const items = [
+    ...PRIMARY,
+    ...SECONDARY,
+    ...(showQueue ? MIDDLEMAN : []),
+    // Only ADMIN and MAIN_MIDDLEMAN see this; app/admin/layout.tsx enforces it.
+    ...(showAdmin ? ADMIN : []),
+  ];
 
   return (
     <nav aria-label="Primary" className="flex w-60 shrink-0 flex-col border-r border-line bg-card">

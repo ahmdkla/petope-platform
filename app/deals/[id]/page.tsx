@@ -24,6 +24,7 @@ import {
   requiredRefundProofKinds,
 } from "@/lib/deal-methods";
 import { DeliveryPanel } from "./delivery-panel";
+import { VouchPanel } from "./vouch-panel";
 import { getListingDemand } from "@/lib/listing-demand";
 import { getMmFeeConfig } from "@/lib/admin-settings";
 import { DemandLine } from "@/components/fee-breakdown";
@@ -107,6 +108,15 @@ export default async function DealRoomPage({
   // the buyer needs to know before paying whether they are in a race.
   const demand = deal.listingId ? await getListingDemand(deal.listingId) : null;
   const feeConfig = await getMmFeeConfig();
+
+  // Only asked for on a completed deal, so the query is skipped otherwise.
+  const existingVouch =
+    deal.status === "COMPLETED"
+      ? await db.vouch.findFirst({
+          where: { dealId: deal.id, authorId: user.id },
+          select: { id: true },
+        })
+      : null;
 
   // Which proofs matter depends on the phase, and comes from the method config.
   const activeKinds = !deal.method
@@ -242,6 +252,15 @@ export default async function DealRoomPage({
                 </Caution>
               ) : null}
             </Card>
+          ) : null}
+
+          {deal.status === "COMPLETED" && deal.middleman ? (
+            <VouchPanel
+              dealId={deal.id}
+              role={role}
+              middlemanName={deal.middleman.displayName ?? "the middleman"}
+              alreadyVouched={Boolean(existingVouch)}
+            />
           ) : null}
 
           <DeliveryPanel
