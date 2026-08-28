@@ -12,7 +12,7 @@ import { formatMoney } from "@/lib/money";
 import { DEAL_METHOD_RULES } from "@/lib/deal-methods";
 import { ClaimButton } from "./claim-button";
 
-export const metadata: Metadata = { title: "Queue — EXSAVERSE" };
+export const metadata: Metadata = { title: "Queue" };
 export const dynamic = "force-dynamic";
 
 export default async function QueuePage({

@@ -15,7 +15,7 @@ import { resolveTotal } from "@/lib/money";
 import { Store, Plus } from "lucide-react";
 import { NewListingButton } from "./new-listing-modal";
 
-export const metadata: Metadata = { title: "Listings — EXSAVERSE" };
+export const metadata: Metadata = { title: "Listings" };
 export const dynamic = "force-dynamic";
 
 type SearchParams = {

@@ -6,7 +6,7 @@ import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { Avatar, Badge, EmptyState, Note } from "@/components/ui";
 
 export const metadata: Metadata = {
-  title: "Blacklist — EXSAVERSE",
+  title: "Blacklist",
   description: "Accounts blacklisted from EXSAVERSE, with the recorded reason.",
 };
 

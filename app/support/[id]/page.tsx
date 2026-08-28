@@ -12,7 +12,7 @@ import {
   SUPPORT_STATUS_TONE,
 } from "@/lib/report-meta";
 
-export const metadata: Metadata = { title: "Support room — EXSAVERSE" };
+export const metadata: Metadata = { title: "Support room" };
 export const dynamic = "force-dynamic";
 
 export default async function SupportRoomPage({

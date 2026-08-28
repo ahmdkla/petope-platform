@@ -8,7 +8,7 @@ import { Badge, Card, EmptyState, Note, SectionTitle } from "@/components/ui";
 import { DealReference } from "@/components/deal-reference";
 import { RunTimersButton } from "./run-button";
 
-export const metadata: Metadata = { title: "Release timers — EXSAVERSE" };
+export const metadata: Metadata = { title: "Release timers" };
 export const dynamic = "force-dynamic";
 
 export default async function TimersPage() {

@@ -9,7 +9,7 @@ import { DealList, type DealRow } from "./deal-list";
 import { Handshake } from "lucide-react";
 import type { SettlementAsset } from "@/lib/money";
 
-export const metadata: Metadata = { title: "My deals — EXSAVERSE" };
+export const metadata: Metadata = { title: "My deals" };
 export const dynamic = "force-dynamic";
 
 const ROLE_LABEL: Record<string, string> = {

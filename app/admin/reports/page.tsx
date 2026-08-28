@@ -12,7 +12,7 @@ import {
   REPORT_STATUS_TONE,
 } from "@/lib/report-meta";
 
-export const metadata: Metadata = { title: "Reports — EXSAVERSE" };
+export const metadata: Metadata = { title: "Reports" };
 export const dynamic = "force-dynamic";
 
 export default async function ReportsPage() {

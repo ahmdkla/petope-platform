@@ -8,7 +8,7 @@ import { formatMoney } from "@/lib/money";
 import { DEAL_METHOD_RULES } from "@/lib/deal-methods";
 import { RulingForm } from "./ruling-form";
 
-export const metadata: Metadata = { title: "Disputes — EXSAVERSE" };
+export const metadata: Metadata = { title: "Disputes" };
 export const dynamic = "force-dynamic";
 
 export default async function DisputesPage() {

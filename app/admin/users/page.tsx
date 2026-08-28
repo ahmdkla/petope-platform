@@ -8,7 +8,7 @@ import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { Avatar, Badge, EmptyState, Input, Note, SectionTitle } from "@/components/ui";
 import { UserRow } from "./user-row";
 
-export const metadata: Metadata = { title: "Users — EXSAVERSE" };
+export const metadata: Metadata = { title: "Users" };
 export const dynamic = "force-dynamic";
 
 export default async function UsersPage({

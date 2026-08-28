@@ -8,7 +8,7 @@ import { DealReference } from "@/components/deal-reference";
 import { formatMoney } from "@/lib/money";
 import { RefundForm } from "./refund-form";
 
-export const metadata: Metadata = { title: "Fee refunds — EXSAVERSE" };
+export const metadata: Metadata = { title: "Fee refunds" };
 export const dynamic = "force-dynamic";
 
 export default async function FeeRefundsPage() {

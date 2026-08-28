@@ -13,7 +13,7 @@ import {
   SUPPORT_STATUS_TONE,
 } from "@/lib/report-meta";
 
-export const metadata: Metadata = { title: "Support — EXSAVERSE" };
+export const metadata: Metadata = { title: "Support" };
 export const dynamic = "force-dynamic";
 
 export default async function SupportPage() {

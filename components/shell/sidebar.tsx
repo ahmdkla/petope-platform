@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { NavLink } from "./nav-link";
+import { Logo } from "@/components/logo";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSyncExternalStore, useCallback } from "react";
 import {
@@ -183,9 +184,7 @@ export function Sidebar({
         onClick={onNavigate}
         className="flex h-16 items-center gap-2.5 border-b border-line px-5"
       >
-        <span className="grid size-7 place-items-center rounded-md bg-accent font-mono text-meta font-bold text-accent-ink">
-          E
-        </span>
+        <Logo size={28} />
         <span className="font-mono text-lead font-semibold tracking-tight text-ink">
           EXSAVERSE
         </span>

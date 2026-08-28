@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { SignInForm } from "./sign-in-form";
 import { ImpersonationNotice } from "@/components/impersonation-notice";
 
-export const metadata: Metadata = { title: "Sign in — EXSAVERSE" };
+export const metadata: Metadata = { title: "Sign in" };
 
 export default async function SignInPage({
   searchParams,

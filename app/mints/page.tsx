@@ -7,7 +7,7 @@ import { Badge, Card, EmptyState, Note, SectionTitle } from "@/components/ui";
 import { MintAdmin, RescheduleButton } from "./mint-admin";
 
 export const metadata: Metadata = {
-  title: "Mint schedule — EXSAVERSE",
+  title: "Mint schedule",
   description: "Upcoming project mints. Deals link here, and release timers depend on these dates.",
 };
 

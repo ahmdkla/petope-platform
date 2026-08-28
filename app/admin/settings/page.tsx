@@ -9,7 +9,7 @@ import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { Card, Note, SectionTitle } from "@/components/ui";
 import { SettingsForm } from "./settings-form";
 
-export const metadata: Metadata = { title: "Settings — EXSAVERSE" };
+export const metadata: Metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {

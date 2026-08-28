@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { DemoBanner } from "@/components/demo-banner";
+import { Logo } from "@/components/logo";
 
 /**
  * Auth shell. Conventionally centered: the Design Direction's ban on centered
@@ -13,9 +14,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="flex flex-1 items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
           <Link href="/" className="mb-7 flex items-center justify-center gap-2.5">
-            <span className="grid size-8 place-items-center rounded-md bg-accent font-mono text-body font-bold text-accent-ink">
-              E
-            </span>
+            <Logo size={32} />
             <span className="font-mono text-section font-semibold tracking-tight text-ink">
               EXSAVERSE
             </span>

@@ -14,7 +14,7 @@ import {
 import { shiftStatus, currentShiftWindow, isOnShift } from "@/lib/shifts";
 
 export const metadata: Metadata = {
-  title: "Middleman roster — EXSAVERSE",
+  title: "Middleman roster",
   description:
     "The official list of EXSAVERSE middlemen. Anyone not on this list is not a middleman.",
 };

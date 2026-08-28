@@ -7,7 +7,7 @@ import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { Avatar, Badge, Card, EmptyState, SectionTitle } from "@/components/ui";
 import { Wallet } from "lucide-react";
 
-export const metadata: Metadata = { title: "Profile — EXSAVERSE" };
+export const metadata: Metadata = { title: "Profile" };
 export const dynamic = "force-dynamic";
 
 const ROLE_LABEL: Record<string, string> = {

@@ -32,7 +32,7 @@ import { Card, Caution, SectionTitle } from "@/components/ui";
 import { TimersCard, type TimerView } from "./timers-card";
 import { formatMoney } from "@/lib/money";
 
-export const metadata: Metadata = { title: "Deal room — EXSAVERSE" };
+export const metadata: Metadata = { title: "Deal room" };
 export const dynamic = "force-dynamic";
 
 export default async function DealRoomPage({

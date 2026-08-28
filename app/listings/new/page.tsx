@@ -5,7 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { ListingForm } from "./listing-form";
 
-export const metadata: Metadata = { title: "Post a listing — EXSAVERSE" };
+export const metadata: Metadata = { title: "Post a listing" };
 
 export default async function NewListingPage() {
   const user = await getCurrentUser();

@@ -7,7 +7,7 @@ import { Avatar, Badge, Card, EmptyState, Note, SectionTitle } from "@/component
 import { isOnShift } from "@/lib/shifts";
 
 export const metadata: Metadata = {
-  title: "Vouches — EXSAVERSE",
+  title: "Vouches",
   description: "Testimonials for EXSAVERSE middlemen, each tied to a completed deal.",
 };
 

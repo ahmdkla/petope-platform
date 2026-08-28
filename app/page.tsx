@@ -11,7 +11,7 @@ import { ImpersonationNotice } from "@/components/impersonation-notice";
 import { currentShiftWindow, isOnShift } from "@/lib/shifts";
 import { shortReference } from "@/lib/reference";
 
-export const metadata: Metadata = { title: "Overview — EXSAVERSE" };
+export const metadata: Metadata = { title: "Overview" };
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {

@@ -683,3 +683,31 @@ Verified per role: `USER` → 307 on `/admin/*` and `/queue`; `MIDDLEMAN` → 20
 
 **The rule: authorization belongs in `proxy.ts`. A check inside a layout or page
 runs too late to stop the data being rendered.**
+
+---
+
+## The favicon is a redraw below 32px
+
+**Date:** 2026-08-29
+
+The supplied mark is a hexagon with an E carved out of it by two diagonal cuts.
+Resampled to 16×16 those cuts smear into single grey pixels and the hexagon's
+points round off — the result is a dark blob with texture, not a mark. Checked
+by rendering it and magnifying, rather than assumed.
+
+So `app/icon.png` (16×16) is drawn on the pixel grid instead: the hexagon
+silhouette keeps four rows of taper at each end, and the middle eight rows spend
+themselves on the E as two 2px cuts around a 2px arm. Flat fill, no gradient —
+at that size a gradient only lowers contrast.
+
+From 32px up the real artwork holds together, so `app/icon1.png` (32×32) and
+`app/apple-icon.png` (180×180) are the supplied mark, resampled. Next emits both
+icons with correct `sizes`, and the browser picks.
+
+`app/favicon.ico` — the stock Next placeholder — was deleted. It emitted
+`<link rel="icon" sizes="any">`, which wins over a sized PNG in some browsers,
+so leaving it would have quietly kept the default icon.
+
+**Icons carry their own tan plate.** A transparent favicon is at the mercy of
+whatever the browser paints behind it; the plate means the mark is legible on
+light and dark chrome alike, and it matches how the artwork was supplied.

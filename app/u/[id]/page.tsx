@@ -6,7 +6,7 @@ import { Avatar, Badge, Card, EmptyState, SectionTitle } from "@/components/ui";
 import { Store, BadgeCheck } from "lucide-react";
 import { formatMoney, resolveTotal } from "@/lib/money";
 
-export const metadata: Metadata = { title: "Member — EXSAVERSE" };
+export const metadata: Metadata = { title: "Member" };
 export const dynamic = "force-dynamic";
 
 export default async function PublicProfilePage({

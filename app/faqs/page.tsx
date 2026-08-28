@@ -7,7 +7,7 @@ import { ImpersonationNotice } from "@/components/impersonation-notice";
 import { GENERAL_FAQ, methodFaqs } from "@/lib/faq";
 
 export const metadata: Metadata = {
-  title: "FAQs — EXSAVERSE",
+  title: "FAQs",
   description:
     "How escrow works, what a middleman does, what collateral is, and the exact money flow of every deal method.",
 };
