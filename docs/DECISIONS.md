@@ -711,3 +711,42 @@ so leaving it would have quietly kept the default icon.
 **Icons carry their own tan plate.** A transparent favicon is at the mercy of
 whatever the browser paints behind it; the plate means the mark is legible on
 light and dark chrome alike, and it matches how the artwork was supplied.
+
+---
+
+## Environment variables are read with truthiness, never `??`
+
+**Date:** 2026-08-29 · **After a failed Vercel build**
+
+`app/layout.tsx` had `process.env.BETTER_AUTH_URL ?? "http://localhost:3000"`
+feeding `new URL(...)`. `??` only catches null and undefined, so a variable that
+exists but is **blank** — a row added in the Vercel dashboard and never filled
+in, or this repo's `.env.example` copied verbatim — passed `""` straight through
+to `new URL("")`, which throws `ERR_INVALID_URL` at module scope and failed the
+entire build.
+
+Blank is the normal shape of this mistake, not an edge case: the dashboard shows
+the row as present, so it reads as configured.
+
+Every env read now uses truthiness plus `.trim()`:
+
+- `app/layout.tsx` — `resolveSiteUrl()` tries `BETTER_AUTH_URL`, then Vercel's
+  own `VERCEL_PROJECT_PRODUCTION_URL`, and validates each with `new URL` inside
+  a `try` so a *malformed* value is also survivable. A typo in a dashboard field
+  should not be a failed deploy.
+- `prisma.config.ts` — the same defect, in the same build step. A blank
+  `DIRECT_URL` would have been handed to Prisma as the datasource and failed
+  `migrate deploy`.
+- `scripts/check-overflow.mjs` — `CHROME_PATH`.
+
+`lib/db.ts` was already correct: it throws on a falsy `DATABASE_URL` rather than
+carrying on.
+
+**The build no longer dies, but it warns.** Falling back silently would trade a
+loud failure for a site that serves `localhost` link previews and a sign-in form
+that refuses every attempt. `resolveSiteUrl` logs
+`[metadata] BETTER_AUTH_URL is not set` into the build output, and DEPLOY.md now
+says a successful deploy is not evidence the variable was configured.
+
+Verified against every branch: unset, `""`, whitespace, malformed,
+Vercel-provided fallback, and a trailing slash (normalised).

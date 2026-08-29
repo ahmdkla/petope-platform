@@ -13,13 +13,57 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const LOCAL_ORIGIN = "http://localhost:3000";
+
 /**
  * The canonical origin. Relative OpenGraph paths have to be absolutised against
  * something, and a link preview scraper cannot resolve "/opengraph-image".
  * Reuses BETTER_AUTH_URL rather than adding a second variable that says the same
  * thing and can drift out of step with it.
+ *
+ * Truthiness, never `??`. A variable that is *declared but empty* is the normal
+ * shape of this misconfiguration — an unset row in the Vercel dashboard, or a
+ * copied `.env.example` — and `??` only catches null/undefined, so `""` goes
+ * straight into `new URL("")`, which throws ERR_INVALID_URL at module scope and
+ * takes the whole build down. A malformed value is caught for the same reason:
+ * a typo in a dashboard field should not be a failed deploy.
  */
-const siteUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
+function resolveSiteUrl(): string {
+  const candidates = [
+    process.env.BETTER_AUTH_URL?.trim(),
+    // Vercel supplies this on every deployment. It is a weaker answer than the
+    // real setting — it is not the custom domain — but it beats emitting
+    // localhost URLs into a link preview.
+    process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL!.trim()}`
+      : undefined,
+  ];
+
+  for (const c of candidates) {
+    if (!c) continue;
+    try {
+      return new URL(c).toString();
+    } catch {
+      console.warn(
+        `[metadata] Ignoring unparseable site URL ${JSON.stringify(c)}.`,
+      );
+    }
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    // Loud in the build log rather than a silently wrong og:url. Auth is the
+    // bigger casualty: Better Auth checks the request Origin against this same
+    // variable, so without it sign-in fails with MISSING_OR_NULL_ORIGIN.
+    console.warn(
+      "[metadata] BETTER_AUTH_URL is not set. Falling back to " +
+        `${LOCAL_ORIGIN} — link previews will be wrong and sign-in will fail. ` +
+        "Set it in the Vercel project's environment variables.",
+    );
+  }
+  return LOCAL_ORIGIN;
+}
+
+const siteUrl = resolveSiteUrl();
 
 const DESCRIPTION =
   "Whitelist marketplace with middleman escrow. A verified middleman holds funds and collateral until delivery is confirmed.";

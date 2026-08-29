@@ -23,7 +23,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const CHROME =
-  process.env.CHROME_PATH ??
+  // Truthiness so a blank CHROME_PATH falls back rather than spawning "".
+  process.env.CHROME_PATH?.trim() ||
   "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const PORT = 9333;
 const BASE = "http://localhost:3000";

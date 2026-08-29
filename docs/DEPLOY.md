@@ -48,13 +48,19 @@ running application always uses the pooled `DATABASE_URL` either way.
 Set these in **Project → Settings → Environment Variables**. Full descriptions
 are in [`.env.example`](../.env.example); this is the deployment summary.
 
-| Variable | Environments | Secret | Value |
-|---|---|---|---|
-| `DATABASE_URL` | Production, Preview, Development | yes | **Pooled** Neon string (host contains `-pooler`) with `sslmode=verify-full&channel_binding=require` |
-| `BETTER_AUTH_SECRET` | Production, Preview, Development | yes | `openssl rand -hex 32`, a different value per environment |
-| `BETTER_AUTH_URL` | Production, Preview, Development | no | The exact origin, no trailing slash |
-| `DEMO_MODE` | Production, Preview, Development | no | `true` |
-| `DIRECT_URL` | Production only, optional | yes | Unpooled Neon string. Only if a migration fails on a lock. |
+| Variable | Required | Environments | Secret | Value |
+|---|---|---|---|---|
+| `DATABASE_URL` | **yes** | Production, Preview, Development | yes | **Pooled** Neon string (host contains `-pooler`) with `sslmode=verify-full&channel_binding=require` |
+| `BETTER_AUTH_URL` | **yes** | Production, Preview, Development | no | The exact origin, no trailing slash. Sign-in does not work without it. |
+| `BETTER_AUTH_SECRET` | **yes** | Production, Preview, Development | yes | `openssl rand -hex 32`, a different value per environment |
+| `DEMO_MODE` | **yes** | Production, Preview, Development | no | `true` |
+| `DIRECT_URL` | no | Production only | yes | Unpooled Neon string. Only if a migration fails on a lock. |
+
+> **A blank value is not a missing one.** A variable added in the dashboard and
+> left empty reads as present in the UI but is `""` at runtime, which slips past
+> a `??` fallback. Every read in this project uses a truthiness check for that
+> reason, but a blank value still means the feature it configures is off. After
+> setting these, confirm each one has a value — not merely a row.
 
 Three things that cause real, confusing failures:
 
@@ -65,11 +71,20 @@ Three things that cause real, confusing failures:
   authenticates nothing, so it does not stop an interception. `verify-full`
   checks the certificate *and* that the hostname matches it. Neon serves a
   publicly-trusted certificate, so no CA bundle is needed.
-- **`BETTER_AUTH_URL` must match the origin the browser actually uses.** Better
-  Auth checks the request `Origin` against it; a mismatch fails sign-in with
-  `MISSING_OR_NULL_ORIGIN` rather than falling back to something sensible. For
-  Production use the custom domain, or the stable production `*.vercel.app`
-  URL — never a per-deployment preview URL, which changes every push.
+- **`BETTER_AUTH_URL` must be set, and must match the origin the browser
+  actually uses.** It is the easiest of these to skip, because nothing crashes
+  without it — which is precisely the problem. Two things fail quietly:
+  Better Auth checks the request `Origin` against it, so sign-in is rejected
+  with `MISSING_OR_NULL_ORIGIN` / `INVALID_ORIGIN` and the form simply refuses;
+  and it is the base for OpenGraph URLs, so link previews resolve against
+  `localhost` and show nothing. For Production use the custom domain, or the
+  stable production `*.vercel.app` URL — never a per-deployment preview URL,
+  which changes every push.
+
+  If it is absent the build now falls back to `localhost` and prints
+  `[metadata] BETTER_AUTH_URL is not set` into the build log rather than dying,
+  so **check the build output** — a successful deploy is not evidence that it
+  was configured.
 
 ### Preview deployments
 

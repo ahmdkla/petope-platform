@@ -31,6 +31,10 @@ export default defineConfig({
      */
     // `env()` throws on a missing variable, so the optional one is read
     // straight off process.env (dotenv/config above has already run).
-    url: process.env.DIRECT_URL ?? env('DATABASE_URL'),
+    //
+    // Truthiness, not `??`: a DIRECT_URL row that exists but is blank would
+    // otherwise be passed through as the datasource and fail `migrate deploy`
+    // during the build, which is the same trap as an empty BETTER_AUTH_URL.
+    url: process.env.DIRECT_URL?.trim() || env('DATABASE_URL'),
   },
 });
