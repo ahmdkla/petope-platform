@@ -750,3 +750,226 @@ says a successful deploy is not evidence the variable was configured.
 
 Verified against every branch: unset, `""`, whitespace, malformed,
 Vercel-provided fallback, and a trailing slash (normalised).
+
+---
+
+## Theme switching sweeps, at 520ms — an exception to the motion budget
+
+**Date:** 2026-08-30
+
+The Design Direction caps motion at 150-250ms. The theme sweep runs **520ms**,
+deliberately. That limit exists for interaction feedback — hovers, state
+changes, things a person triggers dozens of times a session, where anything
+slower reads as lag. Switching theme is none of those: it happens once, maybe
+twice, in a sitting, it changes every pixel on screen, and an instant flip is
+the jarring option. The rule is about repeated actions, and this is not one.
+
+Anything else that grows past 250ms should be argued separately, not by pointing
+at this entry.
+
+### How the sweep is built
+
+`document.startViewTransition` snapshots the old and new themes; the new one is
+revealed along a diagonal from the bottom-right corner to the top-left.
+
+**Not clip-path, and not animated gradient stops.** Three techniques were
+measured before choosing:
+
+| Technique | Result |
+|---|---|
+| `mask-image`, keyframing the gradient stop positions | **Discrete.** Interpolates by jumping at the halfway point — the reveal snaps rather than sweeps. |
+| `clip-path: polygon(...)` | Interpolates correctly, but gives a hard cut with no edge treatment. |
+| `mask-position` on an oversized fixed gradient | Interpolates correctly *and* the gradient's ramp is the soft edge. **Chosen.** |
+
+**The edge cannot be a drop-shadow.** Filters are applied before clipping and
+masking, so `filter: drop-shadow()` on the same element is masked away with
+everything outside the shape — verified with a side-by-side probe. Putting it on
+an ancestor does work in general, but the only ancestors here
+(`::view-transition-image-pair`, `::view-transition-group`) also contain the old
+snapshot, whose silhouette is the whole viewport. What the mask ramp gives
+instead is a band where the new theme is partially composited over the old —
+darker than the light side, lighter than the dark side — which reads as a shaded
+edge in both directions.
+
+**The keyframes run 20% → 80%, not 0% → 100%.** At `mask-size: 300%` the element
+only sees a third of the gradient at a time, so a full slide spends its first and
+last quarter with nothing changing: the visible sweep happened in the middle
+~270ms and read as a snap. Those bounds are the positions at which the element is
+exactly all-transparent and exactly all-opaque.
+
+**The app's own colour transitions are suppressed during the sweep.** Every
+surface carries `transition-colors duration-200`, so a theme flip started a few
+hundred simultaneous colour transitions underneath the snapshot — invisible work
+that also left elements mid-blend when a transition was interrupted.
+`html.theme-sweep * { transition: none }` for the duration.
+
+### KNOWN LIMIT: the first click during the sweep is consumed
+
+A root view transition suppresses painting of everything inside `<html>`, and hit
+testing follows painting. Mid-sweep, `elementFromPoint` returns `<html>` rather
+than the element under the cursor. This is not a `pointer-events` problem —
+`pointer-events` is `auto` on the root throughout, and nothing is `inert`. It is
+what capturing the root means, and no CSS fixes it.
+
+This bit the theme toggle itself hardest, and shipped broken: pressing it again
+while a sweep was running did **nothing at all**, so every second click was
+swallowed. The event trace explains it exactly —
+
+| | no sweep running | sweep running |
+|---|---|---|
+| `pointerdown` | toggle button | `<html>` |
+| `pointerup` | toggle button | **toggle button** (skip restored hit testing) |
+| `click` | toggle button | `<html>` (common ancestor of the two above) |
+
+The fix follows from the middle row: the toggle is driven by **`pointerup`**, not
+`click`. Keyboard activation is kept on `click` and distinguished by
+`event.detail === 0`, which is what Enter and Space report when there are no
+pointer events behind them.
+
+Every automated test missed this because they all clicked with
+`element.click()`, which bypasses hit testing entirely and therefore could never
+reproduce it. Real presses have to go through `Input.dispatchMouseEvent`. **A
+synthetic click is not evidence that a control is clickable.**
+
+Mitigated more generally: the first `pointerdown`, `keydown` or `wheel` calls
+`skipTransition()`, which restores hit testing **within that same event**.
+Measured:
+
+- mid-sweep, `elementFromPoint(120, 98)` → `HTML`
+- immediately after that `pointerdown` → `SPAN / Overview`, sweep count 0
+- the click carrying that pointerdown does **not** activate the link, because the
+  browser resolved its target before the listener ran and `click` fires on the
+  common ancestor of the down and up targets
+- the next click behaves entirely normally
+
+So the app is responsive again within one input event, but that first click is
+lost for every control **except the theme toggle**, which handles it via
+pointerup as above. Applying the same trick everywhere is not worth it: it would
+mean synthesising clicks from pointerup across the app, and a synthetic click is
+untrusted — it would silently break anything gated on user activation, the
+clipboard copy in `components/deal-reference.tsx` among them.
+
+Removing the limit entirely would mean not using the View Transitions API for
+this — a manual two-layer overlay, which is what the API exists to avoid.
+
+### Browser support
+
+Feature-detected on `document.startViewTransition`, never on the user agent. Any
+engine without it switches instantly, which is a perfectly good theme toggle;
+verified by deleting the method and re-running the toggle.
+
+**Firefox 152 supports View Transitions** (Gecko shipped them in 144), so it gets
+the sweep, not the fallback — confirmed by running the real CSS and toggle logic
+in Firefox and reading back `path: VIEW TRANSITION`. The sweep's *rendering* in
+Gecko is unverified: headless Firefox fails to composite the top-layer
+pseudo-elements (`RenderCompositorSWGL failed mapping default framebuffer`), so
+only Chrome frames were captured. Worth one look in a real Firefox window.
+
+`prefers-reduced-motion` was originally honoured by never starting a transition.
+**That was reversed on 2026-08-30 — see the entry below.**
+
+---
+
+## The theme change is a direct DOM write, not React state
+
+**Date:** 2026-08-30 · **Investigating a "toggle no longer switches" report**
+
+The suspected cause was `setTheme` being batched by React inside
+`startViewTransition`, so the DOM would still hold the old theme when the
+browser snapshots the new state — the fix for which is
+`flushSync(() => setTheme(next))`.
+
+**That is not what this component does.** There is no `useState` for the theme
+anywhere in it. `applyTheme()` writes `document.documentElement.dataset.theme`
+directly and synchronously; `useSyncExternalStore` only *reads* the attribute
+back to pick the button's icon. Nothing is batched, so `flushSync` would be a
+no-op.
+
+Verified rather than argued: wrapping `document.startViewTransition` to inspect
+the DOM from inside the callback shows the attribute already flipped **and**
+`getComputedStyle(document.body).backgroundColor` already the new theme's value
+at snapshot time.
+
+```
+[probe] callback: theme dark -> light, body bg now rgb(247, 247, 248)
+[probe] callback: theme light -> dark, body bg now rgb(10, 10, 15)
+```
+
+The report could not be reproduced. Switching works in a real Chrome window
+(both motion settings), a real Firefox window driven over WebDriver BiDi, and
+headless, with real trusted clicks at 200ms and 1s spacing.
+
+### What did change: the animation can no longer take the theme down with it
+
+The premise behind the report was sound even though the mechanism was not — the
+theme change has to be unconditional. It now is:
+
+- `apply()` is idempotent, so it runs exactly once whichever path reaches it
+- `startViewTransition` is called inside `try/catch`; if it throws, the class is
+  removed and the theme changes anyway
+- `updateCallbackDone`/`finished` both route to `apply()`
+- a 1s `setTimeout` failsafe covers a transition that never settles at all,
+  cleared on the normal path
+
+Proven by breaking the API on purpose, in a real browser:
+
+| Injected failure | Result |
+|---|---|
+| `startViewTransition` throws | theme still switches |
+| callback never invoked, nothing settles | theme still switches (failsafe) |
+| `finished` rejects | theme still switches |
+| API deleted entirely | instant switch |
+
+### This machine reports `prefers-reduced-motion: reduce`
+
+A real Chrome window here reports `matchMedia("(prefers-reduced-motion: reduce)")`
+as **true** — Windows Settings › Accessibility › Visual effects › Animation
+effects is off. On this machine the sweep is therefore skipped by design and the
+theme switches instantly. That is correct behaviour, and worth knowing before
+concluding the animation is broken.
+
+---
+
+## The theme sweep ignores `prefers-reduced-motion`
+
+**Date:** 2026-08-30 · **Owner's decision, against my recommendation**
+
+The sweep originally skipped itself entirely when
+`prefers-reduced-motion: reduce` was set, as specified. On the development
+machine that meant it never played at all: Windows has animation effects
+switched off (`HKCU\Control Panel\Desktop\WindowMetrics\MinAnimate = 0`), so
+both Chrome and Firefox report `reduce`, and the theme switched instantly.
+Two rounds of "the theme is not working" traced to exactly this.
+
+Four resolutions were put to the owner: change the OS setting, add a site-level
+override that defaults to following the OS, degrade to a short cross-fade
+instead of nothing, or ignore the preference outright. **The owner chose to
+ignore it**, with the accessibility cost stated in the question.
+
+So the sweep now plays for everyone, including people whose operating system has
+asked for less motion. `prefers-reduced-motion` is a real accessibility signal —
+motion sensitivity, vestibular disorders and migraine are the reasons it exists —
+and a 520ms full-viewport wipe is squarely the kind of motion it is meant to
+suppress. Recording that here because a future reader will otherwise assume the
+omission is a bug and "fix" it.
+
+**Scope.** Only the theme sweep. Reduced-motion handling elsewhere is untouched:
+the `motion-reduce:animate-none` on button spinners, and the global rule in
+`globals.css` that damps `*`, `::before` and `::after`. That global rule never
+reached the sweep anyway — view-transition pseudo-elements match none of those
+selectors — which is why removing the sweep's own `@media` block is what
+actually changed the behaviour.
+
+**Reverting** is two small edits: restore the `matchMedia` guard in
+`components/theme-toggle.tsx`, and the `@media (prefers-reduced-motion: reduce)`
+block at the end of `globals.css`. A site-level override with an OS-following
+default remains the better answer if this ever ships to real users.
+
+**Verified after the change**, in real browser windows with the machine's own
+setting left as it is (`reduce` reported by both engines):
+
+| | result |
+|---|---|
+| Chrome, real window | sweep runs, sampled `[0,1,1,1,1,1,1,1,1,0,…]`, renders correctly mid-scrub |
+| Firefox 152, real window over WebDriver BiDi | sweep runs, sampled `[1,1,1,1,1,1,1,1,1,0,0,0]` |
+| both, rapid clicks 200ms apart | every click switches, no stacking, no stuck class |

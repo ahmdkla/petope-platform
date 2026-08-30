@@ -189,3 +189,110 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Theme sweep
+   ---------------------------------------------------------------------------
+   Switching theme reveals the new one along a diagonal running from the
+   bottom-right corner to the top-left, like a sheet drawn across the page.
+
+   Scoped to `html.theme-sweep`, added just before startViewTransition and
+   removed when it finishes, so any future view transition in this app gets the
+   browser default rather than inheriting a sweep.
+
+   Duration is a deliberate exception to the 150-250ms in the Design Direction;
+   see docs/DECISIONS.md. Switching theme is an occasional, deliberate act.
+--------------------------------------------------------------------------- */
+:root {
+  --sweep-duration: 520ms;
+}
+
+/* The pseudo-element overlay lives in the top layer and covers the viewport.
+   Without this it swallows every click for the length of the animation, which
+   is exactly the "app feels broken" behaviour the sweep exists to avoid. */
+::view-transition,
+::view-transition-group(root),
+::view-transition-image-pair(root),
+::view-transition-old(root),
+::view-transition-new(root) {
+  pointer-events: none;
+}
+
+html.theme-sweep::view-transition-group(root),
+html.theme-sweep::view-transition-old(root),
+html.theme-sweep::view-transition-new(root) {
+  /* Kill the UA cross-fade and the UA group animation; the sweep is the whole
+     effect and the defaults only fight it. */
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* The outgoing theme sits still while the new one is drawn over it. */
+html.theme-sweep::view-transition-old(root) {
+  z-index: 0;
+}
+
+html.theme-sweep::view-transition-new(root) {
+  z-index: 1;
+
+  /* An oversized gradient mask, slid diagonally.
+     Not clip-path, because a hard cut reads as a straight edge rather than a
+     sheet. Not animated gradient STOPS either: `mask-image` interpolates
+     discretely, so keyframing the stop positions makes the reveal jump at the
+     halfway point instead of sweeping — verified, it is not a subtle bug.
+     `mask-position` is a plain percentage pair and animates properly.
+
+     `to top left` puts the opaque end of the gradient at the bottom-right, so
+     the element's bottom-right corner enters the mask first.
+
+     The narrow ramp between opaque and transparent is the edge treatment. It
+     cannot be a drop-shadow: filters are applied BEFORE clipping and masking,
+     so a shadow on this element is masked away with everything else, and the
+     only ancestors available (::view-transition-image-pair, -group) also
+     contain the old snapshot, whose silhouette is the whole viewport. What the
+     ramp gives instead is a band where the new theme is partially composited
+     over the old — dark over light, or light over dark — which reads as a
+     shaded edge in both directions. */
+  mask-image: linear-gradient(
+    to top left,
+    #000 0 49.2%,
+    transparent 50.8% 100%
+  );
+  mask-size: 300% 300%;
+  mask-repeat: no-repeat;
+  animation: exsa-theme-sweep var(--sweep-duration) cubic-bezier(0.4, 0, 0.2, 1)
+    both;
+}
+
+/* 20% and 80%, not 0% and 100%.
+   At mask-size:300% the element only sees a third of the gradient at a time, so
+   a full 0->100% slide spends its first and last quarter with the element
+   entirely outside the ramp and nothing changing on screen. The visible sweep
+   would happen in the middle ~270ms of a 520ms animation and read as a snap.
+   These bounds are the positions at which the element is exactly all-transparent
+   and exactly all-opaque, so the whole duration is spent sweeping. */
+@keyframes exsa-theme-sweep {
+  from {
+    mask-position: 20% 20%;
+  }
+  to {
+    mask-position: 80% 80%;
+  }
+}
+
+/* Every surface in the app carries `transition-colors duration-200`, so a theme
+   flip starts a few hundred colour transitions at once underneath the snapshot.
+   They are invisible work — the sweep is what the user sees — and they leave
+   elements mid-blend if the transition is interrupted. Suppressed for the
+   duration. */
+html.theme-sweep *,
+html.theme-sweep *::before,
+html.theme-sweep *::after {
+  transition: none !important;
+}
+
+/* No prefers-reduced-motion override for the sweep, by owner's decision — see
+   docs/DECISIONS.md. The global reduce rule earlier in this file does not reach
+   view-transition pseudo-elements (it only matches *, ::before and ::after), so
+   removing this block is what actually lets the sweep run under `reduce`; the
+   rest of the app's reduced-motion behaviour is unchanged. */
