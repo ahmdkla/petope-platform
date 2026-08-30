@@ -1056,3 +1056,60 @@ method list becomes wrapped chips there so it costs two rows rather than seven.
 Verified by scrolling: at 1280px the aside sits at 268px, and after scrolling
 1400px it is pinned at 24px. At 390px it is `position: static` and renders above
 the article.
+
+---
+
+## Three pages, three different causes of empty space
+
+**Date:** 2026-08-31
+
+Wide-screen dead space had a different cause on each page, so it took three
+different fixes rather than one max-width tweak applied everywhere.
+
+### `/faqs` — centred, deliberately not widened
+
+The article column was already at a comfortable measure; stretching it would
+make the lines harder to read, not the page fuller. The whole two-column block
+was simply pinned left — `max-w-5xl` with no `mx-auto`. Adding `mx-auto` was the
+entire fix. Neither column's width changed.
+
+### `/last-sales` — widened, with a stats rail
+
+Rows carry five fields and read better with room, so the list took the width and
+a `19rem` rail took the space beside it: volume secured, total sales, sales in
+the last seven days, and the most active middleman.
+
+**Volume is listed per asset, never summed.** SOL and stablecoins cannot be added
+together without a price feed, and this platform deliberately has none — a
+combined total would be an invented number.
+
+**The stats come from the same query as the feed.** `getSalesFeed()` fetches the
+sales once and derives the figures in memory. Four `count`/`aggregate` calls
+would each pay a connection round trip — measured at ~120-200ms on a cold pool
+against Neon, versus ~32ms on a warm one — so reading the rows and adding them
+up is cheaper than asking the database to.
+
+The trade is that the figures describe the fetched window rather than all
+history. The cap is 500, far above the current dataset; `stats.capped` tells the
+UI when that stops being true so the page can relabel "Total sales" as "Sales
+(recent)" and say so, instead of quietly under-reporting.
+
+### `/listings` — filters moved into a left rail
+
+The grid already filled the width; the *filter row* was the problem, four
+controls in a line leaving a wide gap to their right. They now live in a
+persistent `15rem` rail, sticky, with the market switcher above both columns
+because it changes which market you are in rather than narrowing the one you are
+in. Below `lg` the rail becomes a sheet behind a Filters button that carries a
+count of active filters. State stays URL-driven throughout.
+
+**One expectation this does not meet:** the grid gets *fewer* columns, not more.
+A rail costs horizontal space — at 1920 the grid went from four columns to
+three. What it removes is dead space, not card width. If more columns matter
+more than the rail, the lever is the card's `21rem` minimum track, which is set
+by where the fee breakdown starts wrapping mid-row.
+
+**Verified:** `check-overflow.mjs` clean at 1280 / 1440 / 1920 / 2560, signed out
+across seven pages and signed in across six. The mobile sheet was driven
+end-to-end: rail hidden, button present, sheet opens with all four controls, and
+changing one updates the URL.

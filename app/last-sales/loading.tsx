@@ -1,5 +1,5 @@
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
-import { Loading, Bar, Tile } from "@/components/skeleton";
+import { Loading, Bar, Tile, CardSkeleton } from "@/components/skeleton";
 
 export default function LoadingLastSales() {
   return (
@@ -10,7 +10,8 @@ export default function LoadingLastSales() {
       />
       <PageBody>
         <Loading label="Loading recent sales">
-          <div className="max-w-4xl space-y-5">
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem] lg:gap-8">
+          <div className="min-w-0 space-y-5">
             <Bar className="h-16 w-full" />
             <div className="divide-y divide-line rounded-lg border border-line bg-card shadow-card">
               {Array.from({ length: 6 }, (_, i) => (
@@ -38,6 +39,8 @@ export default function LoadingLastSales() {
                 </div>
               ))}
             </div>
+          </div>
+          <CardSkeleton lines={6} />
           </div>
         </Loading>
       </PageBody>

@@ -3,7 +3,8 @@ import Link from "next/link";
 import { Receipt, Store } from "lucide-react";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { EmptyState, Note } from "@/components/ui";
-import { getRecentSales } from "@/lib/sales";
+import { getSalesFeed } from "@/lib/sales";
+import { StatsRail } from "./stats-rail";
 import { SaleRow } from "./sale-row";
 
 export const metadata: Metadata = {
@@ -14,7 +15,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function LastSalesPage() {
-  const sales = await getRecentSales(60);
+  const { sales, stats } = await getSalesFeed(60);
 
   return (
     <AppShell>
@@ -24,7 +25,11 @@ export default async function LastSalesPage() {
       />
 
       <PageBody>
-        <div className="max-w-4xl space-y-5">
+        {/* Wide list, stats rail beside it. The rows carry five fields and read
+            better with the room; the rail puts the space that was empty to use
+            rather than stretching the list past what it needs. */}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem] lg:gap-8">
+          <div className="min-w-0 space-y-5">
           <Note>
             A sale is recorded the moment a middleman confirms both payments —
             not when a listing runs out. Buyers and sellers are never named here;
@@ -57,9 +62,15 @@ export default async function LastSalesPage() {
             <p className="flex items-center gap-2 text-meta text-ink-faint">
               <Store aria-hidden className="size-4 shrink-0" strokeWidth={1.75} />
               Showing the {sales.length} most recent
-              {sales.length === 60 ? " of a longer history" : ""}.
+              {stats.totalSales > sales.length
+                ? ` of ${stats.totalSales.toLocaleString("en-US")}`
+                : ""}
+              .
             </p>
           ) : null}
+          </div>
+
+          <StatsRail stats={stats} />
         </div>
       </PageBody>
     </AppShell>

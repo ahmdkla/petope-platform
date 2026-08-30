@@ -4,7 +4,7 @@ import type { Prisma, ListingSide } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
-import { ListingFilters } from "./listing-filters";
+import { FilterPanel } from "./filter-panel";
 import { ListingCard } from "./listing-card";
 import { SideTabs } from "./side-tabs";
 import { EmptyState } from "@/components/ui";
@@ -137,9 +137,13 @@ export default async function ListingsPage({
       </div>
 
       <PageBody>
-        <ListingFilters chains={chains.map((c) => c.chain)} />
+        {/* Rail beside the grid, not a row above it. The switcher stays outside
+            this grid, above both columns, because it changes which market you
+            are looking at rather than narrowing the one you are in. */}
+        <div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8">
+          <FilterPanel chains={chains.map((c) => c.chain)} />
 
-        <div className="mt-6">
+          <div className="min-w-0">
           {listings.length === 0 ? (
             <EmptyState
               icon={Store}
@@ -182,6 +186,7 @@ export default async function ListingsPage({
               })}
             </div>
           )}
+          </div>
         </div>
       </PageBody>
     </AppShell>

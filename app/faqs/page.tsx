@@ -23,7 +23,11 @@ export default function FaqsPage() {
       />
 
       <PageBody>
-        <div className="grid max-w-5xl gap-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        {/* Centred, not widened. This is a reading page: the article column is
+            already at a comfortable measure, and stretching it would make the
+            lines harder to read, not the page fuller. The empty space was only
+            ever a symptom of the block being pinned left. */}
+        <div className="mx-auto grid max-w-5xl gap-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
           <div className="space-y-8">
             <section className="space-y-4">
               <SectionTitle>The basics</SectionTitle>

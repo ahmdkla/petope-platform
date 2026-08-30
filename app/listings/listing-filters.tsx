@@ -48,15 +48,17 @@ export function ListingFilters({ chains }: { chains: string[] }) {
   const active = ["chain", "type", "specific", "q"].filter((k) => view.get(k));
 
   return (
+    /**
+     * A vertical stack, because these now live in a rail beside the grid rather
+     * than in a row above it. Four controls laid horizontally left a wide gap
+     * to their right on any large screen; in a column that space becomes cards.
+     */
     <div
       aria-busy={pending || undefined}
-      className={`flex flex-wrap items-end gap-3 transition-opacity duration-200 ${
+      className={`space-y-4 transition-opacity duration-200 ${
         pending ? "opacity-70" : ""
       }`}
     >
-      {/* Each field takes a full row on a phone and its natural width from
-          `sm` up — four 200px controls wrapped at 375px otherwise leave half
-          the row empty. */}
       <Field label="Project" htmlFor="f-q">
         {/* Uncontrolled and keyed on the URL value: the query string is the
             single source of truth, so there is no local state to resync. */}
@@ -74,7 +76,7 @@ export function ListingFilters({ chains }: { chains: string[] }) {
             name="q"
             defaultValue={q}
             placeholder="Search by name"
-            className="w-full sm:w-52"
+            className="w-full"
           />
         </form>
       </Field>
@@ -85,7 +87,7 @@ export function ListingFilters({ chains }: { chains: string[] }) {
           id="f-chain"
           value={view.get("chain") ?? "ALL"}
           onChange={(e) => apply("chain", e.target.value)}
-          className="w-full sm:w-44"
+          className="w-full"
         >
           <option value="ALL">All chains</option>
           {chains.map((c) => (
@@ -101,7 +103,7 @@ export function ListingFilters({ chains }: { chains: string[] }) {
           id="f-type"
           value={view.get("type") ?? "ALL"}
           onChange={(e) => apply("type", e.target.value)}
-          className="w-full sm:w-48"
+          className="w-full"
         >
           <option value="ALL">All methods</option>
           {Object.entries(LISTING_TYPE_LABEL).map(([v, label]) => (
@@ -117,7 +119,7 @@ export function ListingFilters({ chains }: { chains: string[] }) {
           id="f-specific"
           value={view.get("specific") ?? "ALL"}
           onChange={(e) => apply("specific", e.target.value)}
-          className="w-full sm:w-36"
+          className="w-full"
         >
           <option value="ALL">All spots</option>
           <option value="GTD">GTD</option>
@@ -137,7 +139,7 @@ export function ListingFilters({ chains }: { chains: string[] }) {
               router.push(`/listings?${next}`);
             });
           }}
-          className="flex h-field cursor-pointer items-center gap-1.5 rounded-md border border-line px-3 text-body text-ink-muted transition-colors duration-200 hover:border-line-strong hover:text-ink"
+          className="flex h-field w-full cursor-pointer items-center justify-center gap-1.5 rounded-md border border-line px-3 text-body text-ink-muted transition-colors duration-200 hover:border-line-strong hover:text-ink"
         >
           <X aria-hidden className="size-4" strokeWidth={2} />
           Clear {active.length}
@@ -157,7 +159,7 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="w-full space-y-1.5 sm:w-auto">
+    <div className="w-full space-y-1.5">
       <label htmlFor={htmlFor} className="block text-meta font-medium text-ink-muted">
         {label}
       </label>
