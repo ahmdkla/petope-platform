@@ -1113,3 +1113,52 @@ by where the fee breakdown starts wrapping mid-row.
 across seven pages and signed in across six. The mobile sheet was driven
 end-to-end: rail hidden, button present, sheet opens with all four controls, and
 changing one updates the URL.
+
+---
+
+## `unstable_cache` returns strings where the types promise Dates
+
+**Date:** 2026-08-31 · **A regression I introduced, found by crawling every page**
+
+`lib/public-data.ts` cached four public queries. `unstable_cache` round-trips its
+value through the cache store as JSON, so every `Date` came back as an ISO
+**string** — while the function's inferred return type still said `Date`.
+
+Three pages broke, and only two of them said so:
+
+| Page | Symptom |
+|---|---|
+| `/vouches` | `TypeError: createdAt.toISOString is not a function` — blank page |
+| `/blacklist` | `TypeError: blacklistedAt.toISOString is not a function` — blank page |
+| `/mints` | **No error.** `mintAt >= now` compared a string to a Date, put every event in neither the upcoming nor the past list, and the page rendered "No mints are scheduled" with five events in the database |
+
+`/mints` is the one worth remembering. A crash gets reported; a page that
+quietly claims there is no mint schedule does not, and every timer and deal on
+this platform hangs off that schedule.
+
+**Nothing in the toolchain could catch it.** `tsc`, ESLint, the production build
+and all 199 assertions passed, because the type said `Date` and only the runtime
+disagreed. The bug shipped in the same change that measured a 55% improvement on
+`/mints` response time — the page got faster and stopped working.
+
+### The fix makes the boundary honest
+
+The cached functions are now internal, and their result is narrowed through
+`Serialized<T>` — a mapped type that turns every `Date` into `string`, exactly
+as the cache does. Each exported reader must revive its dates to satisfy the
+compiler, so the revive step is the only way to get a `Date` out of that file.
+
+Verified the guard bites: removing the revive from `getVouches` produces
+`Property 'toISOString' does not exist on type 'string'` at both call sites in
+`app/vouches/page.tsx`, rather than compiling and failing in the browser.
+
+### `scripts/crawl.mjs`
+
+The reason this was found at all. It visits every route as signed out, USER,
+MIDDLEMAN and ADMIN — 128 page loads — and reports a page as broken on any of:
+an uncaught exception, a `console.error`, an error-boundary string in the body,
+or a body under 40 characters.
+
+**A 200 is not evidence a page works.** All three of these returned 200 the
+whole time; two rendered a blank shell and one rendered a confident lie. Status
+codes were what the earlier smoke tests checked, which is why they passed.

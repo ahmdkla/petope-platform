@@ -28,6 +28,34 @@ export const TAGS = {
  *  belt-and-braces rather than the only correctness mechanism. */
 const TTL = 60;
 
+/**
+ * What `unstable_cache` ACTUALLY hands back.
+ *
+ * Its value round-trips through the cache store as JSON, so every `Date` comes
+ * out the other side as an ISO **string** — while the function's inferred
+ * return type still promises `Date`. That gap shipped three broken pages:
+ * `/vouches` and `/blacklist` threw `toISOString is not a function`, and
+ * `/mints` silently rendered "No mints are scheduled" because comparing a
+ * string against a Date put every event in neither bucket. Nothing in
+ * `tsc`, lint or the build could see it, because the types said `Date`.
+ *
+ * So the cached layer is typed honestly as `Serialized<T>`, and every exported
+ * reader has to revive its dates to satisfy the compiler. The revive step is
+ * now the only way to get a `Date` out of this file.
+ */
+type Serialized<T> = T extends Date
+  ? string
+  : T extends (infer U)[]
+    ? Serialized<U>[]
+    : T extends object
+      ? { [K in keyof T]: Serialized<T[K]> }
+      : T;
+
+/** Narrow a cached result back to the shape the callers expect. */
+function serialized<T>(value: T): Serialized<T> {
+  return value as unknown as Serialized<T>;
+}
+
 export const getRoster = unstable_cache(
   async () =>
     db.user.findMany({
@@ -68,7 +96,7 @@ export const getVouchFilterRoster = unstable_cache(
   { revalidate: TTL, tags: [TAGS.middlemen, TAGS.vouches] },
 );
 
-export const getVouches = unstable_cache(
+const cachedVouches = unstable_cache(
   async (middlemanId?: string) =>
     db.vouch.findMany({
       where: {
@@ -95,7 +123,13 @@ export const getVouches = unstable_cache(
   { revalidate: TTL, tags: [TAGS.vouches] },
 );
 
-export const getMintEvents = unstable_cache(
+export async function getVouches(middlemanId?: string) {
+  const rows = serialized(await cachedVouches(middlemanId));
+  // `createdAt` arrives as an ISO string from the cache; the UI needs a Date.
+  return rows.map((r) => ({ ...r, createdAt: new Date(r.createdAt) }));
+}
+
+const cachedMintEvents = unstable_cache(
   async () =>
     db.mintEvent.findMany({
       include: { _count: { select: { deals: true } } },
@@ -105,7 +139,20 @@ export const getMintEvents = unstable_cache(
   { revalidate: TTL, tags: [TAGS.mints] },
 );
 
-export const getBlacklist = unstable_cache(
+export async function getMintEvents() {
+  const rows = serialized(await cachedMintEvents());
+  // Without this, `mintAt >= now` compares a string to a Date: it does not
+  // throw, it just puts every event in neither the upcoming nor the past list,
+  // and the page claims nothing is scheduled.
+  return rows.map((r) => ({
+    ...r,
+    mintAt: new Date(r.mintAt),
+    createdAt: new Date(r.createdAt),
+    updatedAt: new Date(r.updatedAt),
+  }));
+}
+
+const cachedBlacklist = unstable_cache(
   async () =>
     db.user.findMany({
       where: { status: 'BLACKLISTED' },
@@ -121,3 +168,12 @@ export const getBlacklist = unstable_cache(
   ['public-blacklist'],
   { revalidate: TTL, tags: [TAGS.blacklist] },
 );
+
+export async function getBlacklist() {
+  const rows = serialized(await cachedBlacklist());
+  return rows.map((r) => ({
+    ...r,
+    // Nullable: an account blacklisted before the column existed has none.
+    blacklistedAt: r.blacklistedAt ? new Date(r.blacklistedAt) : null,
+  }));
+}
