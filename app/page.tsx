@@ -10,6 +10,7 @@ import { formatMoney, resolveTotal } from "@/lib/money";
 import { ImpersonationNotice } from "@/components/impersonation-notice";
 import { currentShiftWindow, isOnShift } from "@/lib/shifts";
 import { shortReference } from "@/lib/reference";
+import { getRecentSales } from "@/lib/sales";
 
 export const metadata: Metadata = { title: "Overview" };
 export const dynamic = "force-dynamic";
@@ -46,16 +47,9 @@ export default async function HomePage() {
             take: 5,
           })
         : Promise.resolve([]),
-      db.deal.findMany({
-        where: { status: "COMPLETED", isTest: false },
-        orderBy: { completedAt: "desc" },
-        take: 5,
-        include: {
-          middleman: {
-            select: { id: true, displayName: true, workingHoursUtc: true },
-          },
-        },
-      }),
+      // Same definition of "a sale" as /last-sales, from the same function, so
+      // the two can never disagree about what counts.
+      getRecentSales(5),
     ]);
 
   const shift = currentShiftWindow();
@@ -200,11 +194,20 @@ export default async function HomePage() {
 
           <aside className="min-w-0 space-y-6">
             <section>
-              <SectionTitle className="mb-4">Recent sales</SectionTitle>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <SectionTitle>Recent sales</SectionTitle>
+                <Link
+                  href="/last-sales"
+                  className="flex items-center gap-1.5 text-meta font-medium text-accent-text transition-opacity duration-200 hover:opacity-80"
+                >
+                  All sales
+                  <ArrowRight aria-hidden className="size-3.5" strokeWidth={2} />
+                </Link>
+              </div>
               {sales.length === 0 ? (
                 <EmptyState
                   icon={CheckCircle2}
-                  message="Completed deals appear here once the first one closes."
+                  message="Sales appear here the moment a middleman confirms both payments."
                 />
               ) : (
                 <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-card shadow-card">
@@ -212,7 +215,7 @@ export default async function HomePage() {
                     <li key={d.id} className="flex items-center gap-3 px-4 py-3.5">
                       <Avatar
                         name={d.middleman?.displayName ?? "??"}
-                        seed={d.middlemanId ?? d.id}
+                        seed={d.middleman?.id ?? d.id}
                         size="sm"
                         onShift={
                           d.middleman

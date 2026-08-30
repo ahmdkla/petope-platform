@@ -119,7 +119,18 @@ export default function FaqsPage() {
             </section>
           </div>
 
-          <aside className="space-y-4">
+          {/*
+            Sticky from `lg` up, where there is a second column to be sticky in.
+            `self-start` is what makes it work at all: a grid item stretches to
+            the row height by default, and an element as tall as its scroll
+            container has nothing left to stick against.
+
+            Below `lg` it moves ABOVE the answers rather than sticking — a
+            pinned panel on a phone would eat the screen the content needs. The
+            method list becomes wrapped chips there so it costs a couple of rows
+            instead of nine.
+          */}
+          <aside className="order-first space-y-4 lg:order-none lg:sticky lg:top-6 lg:max-h-[calc(100dvh-3rem)] lg:self-start lg:overflow-y-auto">
             <ImpersonationNotice />
 
             <Card className="space-y-3">
@@ -139,12 +150,12 @@ export default function FaqsPage() {
 
             <Card className="space-y-3">
               <SectionTitle>Jump to a method</SectionTitle>
-              <ul className="space-y-1.5">
+              <ul className="flex flex-wrap gap-x-2 gap-y-2 lg:block lg:space-y-1.5">
                 {methods.map(({ rule }) => (
                   <li key={rule.id}>
                     <a
                       href={`#${rule.id.toLowerCase()}`}
-                      className="text-meta text-ink-muted underline underline-offset-2 hover:text-ink"
+                      className="inline-flex rounded-md border border-line bg-raised px-2.5 py-1 text-meta text-ink-muted transition-colors duration-200 hover:border-line-strong hover:text-ink lg:border-0 lg:bg-transparent lg:p-0 lg:underline lg:underline-offset-2"
                     >
                       {rule.label}
                     </a>

@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
+import { recordQuery, isCollecting } from './query-log';
 
 /**
  * Prisma 7 will not construct a client without a driver adapter, and it no
@@ -29,13 +30,51 @@ const adapter = new PrismaPg({ connectionString });
  * merely likely. A serverless instance is reused across invocations, so this is
  * also what stops a connection being opened per request.
  */
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+const globalForPrisma = globalThis as unknown as {
+  prisma?: PrismaClient;
+  prismaQueryListener?: boolean;
+};
+
+const isDev = process.env.NODE_ENV === 'development';
 
 export const db =
   globalForPrisma.prisma ??
   new PrismaClient({
     adapter,
-    log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
+    /**
+     * TEMPORARY INSTRUMENTATION (development only).
+     *
+     * `emit: 'event'` rather than `'stdout'` because the stdout logger prints
+     * the query but gives no programmatic access to its duration — and the
+     * duration is the thing being measured. The listener below feeds
+     * lib/query-log.ts, which aggregates per render.
+     */
+    log: isDev
+      ? [{ emit: 'event', level: 'query' }, 'warn', 'error']
+      : ['error'],
   });
+
+/**
+ * Registered once per process, not once per module evaluation. In dev, HMR
+ * re-runs this module while `db` survives on globalThis, so an unguarded
+ * `$on` accumulates a listener per reload — every query then logs several
+ * times and, worse, is counted several times, which would silently inflate the
+ * very measurements this exists to produce.
+ */
+if (isDev && !globalForPrisma.prismaQueryListener) {
+  globalForPrisma.prismaQueryListener = true;
+  // Typed loosely: the event payload's shape depends on the `log` config above,
+  // which TypeScript cannot narrow from a conditional expression.
+  (db as unknown as {
+    $on: (e: 'query', cb: (ev: { query: string; duration: number }) => void) => void;
+  }).$on('query', (ev) => {
+    recordQuery(ev.query, ev.duration);
+    // Only print individual queries when nothing is aggregating them, so a
+    // measured block gets one tidy summary instead of a duplicated firehose.
+    if (!isCollecting()) {
+      console.log(`[prisma] ${ev.duration}ms  ${ev.query.replace(/\s+/g, ' ').slice(0, 110)}`);
+    }
+  });
+}
 
 globalForPrisma.prisma = db;

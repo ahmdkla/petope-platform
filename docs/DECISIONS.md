@@ -973,3 +973,86 @@ setting left as it is (`reduce` reported by both engines):
 | Chrome, real window | sweep runs, sampled `[0,1,1,1,1,1,1,1,1,0,…]`, renders correctly mid-scrub |
 | Firefox 152, real window over WebDriver BiDi | sweep runs, sampled `[1,1,1,1,1,1,1,1,1,0,0,0]` |
 | both, rapid clicks 200ms apart | every click switches, no stacking, no stuck class |
+
+---
+
+## Last sales comes from deals, not from sold-out listings
+
+**Date:** 2026-08-31
+
+`/listings?status=sold-out` filtered listings by `SOLD_OUT`. That could not
+express what a sales feed is for, on two counts:
+
+- **A sale happens when spots are bought, not when stock runs out.** A five-spot
+  listing that sells one spot has made a sale; under the old view it appeared
+  nowhere until the other four went too.
+- **A sale is a transaction, not a listing.** The same listing selling twice is
+  two sales. Filtering listings can only ever produce one row per listing.
+
+`/last-sales` reads `Deal` instead, via `getRecentSales()` in `lib/sales.ts`.
+
+**What counts as sold:** `fundedAt` is not null, and status is not `REFUNDED` or
+`CANCELLED`. Funding is the moment a middleman has confirmed both payment
+proofs, which is also when spots leave the listing's supply — the earliest point
+at which anything was truly bought. `DISPUTED` stays in: the money did move, and
+if the dispute ends in a refund the row drops out on its own.
+
+**Price for each is derived, not stored.** `dealAmount` is the total either way
+— unit × quantity for `FOR_EACH`, the agreed lot price for `FOR_ALL` — so
+dividing by quantity gives the per-unit figure in both cases, which is what the
+Discord embed shows and what a reader compares between rows.
+
+**Fields are exactly the Discord set** (`docs/screenshots/Last sales…`): project,
+price for each, quantity, specific, collateral, middleman, date. Buyer and
+seller are private to the deal room; the MM fee and the buyer's total are
+deal-internal accounting and say nothing about the market. Verified in the
+rendered HTML that none of the four appear.
+
+**Rendered as a detailed list, not cards.** Cards are for browsable inventory you
+pick from; this is a historical record people scan down, comparing price and
+middleman between lines.
+
+Overview's "Recent sales" panel calls the same `getRecentSales()`, so the two
+cannot drift apart about what counts as a sale.
+
+---
+
+## The market switcher is a segmented control
+
+**Date:** 2026-08-31
+
+Selling and Buying are two entirely different markets, and the control that
+moves between them read as two small underlined text links — weight nowhere near
+its importance. It is now a segmented control: a raised track, an elevated
+active segment carrying the existing BUY/SELL semantic colours, an icon, a
+one-line description and the count.
+
+Flat fills only, no gradient. The active side is legible from colour alone
+before a word is read, which is the point.
+
+Still links, not buttons — state stays in the URL, so it is shareable,
+back/forward-able and prefetched — and each segment renders `LinkProgress`
+inside its `<Link>` so pressing one fills immediately rather than when the
+server answers.
+
+---
+
+## The FAQ aside sticks on desktop and moves above the content on mobile
+
+**Date:** 2026-08-31
+
+The impersonation warning, support link and method jump-list scrolled away while
+reading. They are now `lg:sticky lg:top-6`.
+
+`lg:self-start` is the part that makes it work: a grid item stretches to the row
+height by default, and an element as tall as its scroll container has nothing
+left to stick against. Also `lg:max-h-[calc(100dvh-3rem)] lg:overflow-y-auto`, so
+a long aside scrolls internally instead of having its bottom cut off.
+
+Below `lg` it is not sticky — a pinned panel on a phone eats the screen the
+content needs. It moves above the answers instead (`order-first`), and the
+method list becomes wrapped chips there so it costs two rows rather than seven.
+
+Verified by scrolling: at 1280px the aside sits at 268px, and after scrolling
+1400px it is pinned at 24px. At 390px it is `position: static` and renders above
+the article.

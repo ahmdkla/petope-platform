@@ -43,17 +43,18 @@ const PRIMARY: NavItem[] = [
       {
         href: "/listings?side=SELL",
         label: "Selling",
-        match: (p, q) => p === "/listings" && q.get("side") !== "BUY" && q.get("status") !== "sold-out",
+        match: (p, q) => p === "/listings" && q.get("side") !== "BUY",
       },
       {
         href: "/listings?side=BUY",
         label: "Buying",
-        match: (p, q) => p === "/listings" && q.get("side") === "BUY" && q.get("status") !== "sold-out",
+        match: (p, q) => p === "/listings" && q.get("side") === "BUY",
       },
+      // Not a listings filter: sales come from deals, so this is its own route.
       {
-        href: "/listings?status=sold-out",
-        label: "Sold out",
-        match: (p, q) => p === "/listings" && q.get("status") === "sold-out",
+        href: "/last-sales",
+        label: "Last sales",
+        match: (p) => p === "/last-sales",
       },
     ],
   },

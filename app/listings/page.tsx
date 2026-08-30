@@ -10,6 +10,7 @@ import { SideTabs } from "./side-tabs";
 import { EmptyState } from "@/components/ui";
 import { getListingDemandMap } from "@/lib/listing-demand";
 import { getMmFeeConfig } from "@/lib/admin-settings";
+import { withQueryLog } from "@/lib/query-log";
 import { computeMmFee } from "@/lib/mm-fee";
 import { resolveTotal } from "@/lib/money";
 import { Store, Plus } from "lucide-react";
@@ -36,13 +37,12 @@ export default async function ListingsPage({
   const user = await getCurrentUser();
 
   const side: ListingSide = sp.side === "BUY" ? "BUY" : "SELL";
-  const soldOutOnly = sp.status === "sold-out";
 
   const where: Prisma.ListingWhereInput = {
-    // The sold-out view spans both sides: it is a state, not a side.
-    ...(soldOutOnly ? {} : { side }),
-    // Sold-out listings stay visible; they just take no new deals.
-    status: soldOutOnly ? "SOLD_OUT" : { in: ["ACTIVE", "SOLD_OUT"] },
+    side,
+    // Sold-out listings stay visible; they just take no new deals. Sales
+    // themselves live at /last-sales, sourced from deals rather than listings.
+    status: { in: ["ACTIVE", "SOLD_OUT"] },
     // Test fixtures never appear in a public feed.
     isTest: false,
     ...(sp.chain ? { chain: sp.chain } : {}),
@@ -64,8 +64,10 @@ export default async function ListingsPage({
    * depends on an earlier result (it needs the listing ids), so it is the one
    * thing that still waits.
    */
+  // TEMPORARY INSTRUMENTATION — wraps the fetch, changes nothing about it.
   const [listings, chains, allChains, buyCount, sellCount, lastListing, feeConfig] =
-    await Promise.all([
+    await withQueryLog(`listings page · side=${side}`, () =>
+    Promise.all([
       db.listing.findMany({
         where,
         include: { author: { select: { id: true, displayName: true, isVerifiedMm: true } } },
@@ -95,21 +97,23 @@ export default async function ListingsPage({
           })
         : Promise.resolve(null),
       getMmFeeConfig(),
-    ]);
+    ]));
 
   const formChains = allChains.map((c) => c.chain);
   const formDefaults = lastListing ?? null;
 
   // Needs the ids above, so this is the only genuine second round trip. Batched
   // so the feed does not fire two queries per card.
-  const demandMap = await getListingDemandMap(listings.map((l) => l.id));
+  const demandMap = await withQueryLog("listings page · demand map (second wave)", () =>
+    getListingDemandMap(listings.map((l) => l.id)),
+  );
 
   const filtered = Boolean(sp.chain || (sp.type && sp.type !== "ALL") || (sp.specific && sp.specific !== "ALL") || sp.q);
 
   return (
     <AppShell>
       <PageHeader
-        title={soldOutOnly ? "Sold out" : "Listings"}
+        title="Listings"
         description="Sellers post what they have; buyers post what they want. Every deal is held by a middleman until delivery is confirmed."
         actions={
           user ? (
@@ -126,11 +130,11 @@ export default async function ListingsPage({
         }
       />
 
-      {soldOutOnly ? null : (
-        <div className="border-b border-line px-4 sm:px-6 lg:px-8">
-          <SideTabs side={side} buyCount={buyCount} sellCount={sellCount} />
-        </div>
-      )}
+      {/* No bottom border now: the segmented control is its own object rather
+          than a row of underlined tabs. */}
+      <div className="px-4 pt-5 sm:px-6 lg:px-8">
+        <SideTabs side={side} buyCount={buyCount} sellCount={sellCount} />
+      </div>
 
       <PageBody>
         <ListingFilters chains={chains.map((c) => c.chain)} />
@@ -142,9 +146,7 @@ export default async function ListingsPage({
               message={
                 filtered
                   ? "No listings match these filters. Clear one to widen the search."
-                  : soldOutOnly
-                    ? "Nothing is sold out yet. Listings appear here once every spot is taken."
-                    : side === "SELL"
+                  : side === "SELL"
                     ? "No whitelist spots are for sale right now. New listings appear here as sellers post them."
                     : "Nobody is currently looking to buy. Buyer requests appear here as they are posted."
               }
