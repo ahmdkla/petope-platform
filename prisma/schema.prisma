@@ -258,6 +258,19 @@ model User {
   lastSeenIpHash   String?
   lastSeenDeviceId String?
 
+  /**
+   * Created by an automated test rather than by a person.
+   *
+   * Same reasoning as Deal.isTest and Listing.isTest, and the same consequence
+   * if it is missing: the report suites create throwaway accounts and blacklist
+   * them, and without this every one of them was published on the public
+   * /blacklist page as a named scammer. Thirteen of the fourteen entries there
+   * were test debris.
+   *
+   * Any public surface that lists PEOPLE must filter on this.
+   */
+  isTest Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

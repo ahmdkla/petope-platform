@@ -80,7 +80,12 @@ async function main() {
       // touch a deal, so a fixed address would collide on the second run.
       const email = `supplybuyer${i}.${run}@exsaverse.demo`;
       const u = await db.user.create({
-        data: { email, displayName: `supply_${i}`, termsAcceptedAt: new Date() },
+        data: {
+          email,
+          displayName: `supply_${i}`,
+          termsAcceptedAt: new Date(),
+          isTest: true,
+        },
       });
       extra.push({ id: u.id, email, displayName: u.displayName,
         avatarUrl: null, role: u.role, status: u.status });

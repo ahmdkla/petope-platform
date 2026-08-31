@@ -34,6 +34,9 @@ async function main() {
       email: `scammer.${run}@invalid.test`,
       displayName: `scammer_${run}`,
       termsAcceptedAt: new Date(),
+      // This account gets blacklisted below, and /blacklist names people
+      // publicly. Without this the suite publishes its own fixtures.
+      isTest: true,
     },
   });
   // Set at creation above; narrowed so the queries below typecheck.
@@ -128,6 +131,7 @@ async function main() {
       email: `innocent.${run}@invalid.test`,
       displayName: `innocent_${run}`,
       termsAcceptedAt: new Date(),
+      isTest: true,
     },
   });
   const otherHandle = other.displayName!;

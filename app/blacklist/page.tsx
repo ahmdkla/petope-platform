@@ -39,7 +39,7 @@ export default async function BlacklistPage() {
       />
 
       <PageBody>
-        <div className="max-w-3xl space-y-6">
+        <div className="max-w-6xl space-y-6">
           <Note>
             Every entry here was reviewed by an admin before it was published.
             Reports under review are not listed — an accusation is not a finding.
@@ -51,9 +51,19 @@ export default async function BlacklistPage() {
               message="Nobody is blacklisted. Accounts appear here only after a report is upheld."
             />
           ) : (
-            <ul className="divide-y divide-line overflow-hidden rounded-lg border border-line bg-card shadow-card">
+            /**
+             * Two columns from `md` up. Each entry is a short, self-contained
+             * record rather than a row to compare across, so the single column
+             * was buying nothing and leaving half the page empty. Separate
+             * cards rather than a divided list: dividers imply a shared reading
+             * order down the page, which is wrong once entries sit side by side.
+             */
+            <ul className="grid gap-4 md:grid-cols-2">
               {blacklisted.map((u) => (
-                <li key={u.id} className="flex items-start gap-4 p-5">
+                <li
+                  key={u.id}
+                  className="flex min-w-0 items-start gap-4 rounded-lg border border-line bg-card p-5 shadow-card"
+                >
                   <Avatar name={u.displayName ?? "??"} seed={u.id} />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">

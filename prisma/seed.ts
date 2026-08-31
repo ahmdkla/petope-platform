@@ -13,6 +13,7 @@
 import 'dotenv/config';
 import { auth } from '../lib/auth';
 import { db } from '../lib/db';
+import { BLACKLISTED } from './blacklist-cases';
 import type {
   ListingSide,
   ListingType,
@@ -82,7 +83,17 @@ const PEOPLE: Seed[] = [
   { email: 'quill@exsaverse.demo', displayName: 'quill', role: 'USER', purpose: 'background trader — owns marketplace listings' },
 
   // Upheld report target, blacklisted below so /blacklist has a real entry.
+  // --- blacklisted -------------------------------------------------------
+  // Seven upheld cases, so /blacklist and /admin/reports both have a real
+  // spread to show. Each one is blacklisted by an upheld report below, never
+  // by hand: the page promises every entry was reviewed first.
   { email: 'dredge@exsaverse.demo', displayName: 'dredge', role: 'USER', purpose: 'BLACKLISTED — cannot sign in, shown on /blacklist' },
+  { email: 'vexnode@exsaverse.demo', displayName: 'vexnode', role: 'USER', purpose: 'BLACKLISTED' },
+  { email: 'mirrorsmm@exsaverse.demo', displayName: 'mirrors_mm', role: 'USER', purpose: 'BLACKLISTED' },
+  { email: 'nullkey@exsaverse.demo', displayName: 'nullkey', role: 'USER', purpose: 'BLACKLISTED' },
+  { email: 'redredge@exsaverse.demo', displayName: 'dredge_2', role: 'USER', purpose: 'BLACKLISTED' },
+  { email: 'slipmint@exsaverse.demo', displayName: 'slipmint', role: 'USER', purpose: 'BLACKLISTED' },
+  { email: 'coldhandle@exsaverse.demo', displayName: 'coldhandle', role: 'USER', purpose: 'BLACKLISTED' },
 ];
 
 type ListingSeed = {
@@ -619,33 +630,36 @@ async function main() {
     },
   });
 
-  const upheld = await db.scammerReport.create({
-    data: {
-      reporterId: ids.kairo,
-      accusedUserId: ids.dredge,
-      accusedHandle: 'dredge',
-      category: 'SCAM',
-      evidence:
-        'Took collateral on two deals, handed over a wallet with no whitelist role on either, then stopped replying. Both deals were refunded from collateral.',
-      status: 'UPHELD',
-      reviewedById: ids.admin,
-      reviewedAt: ago(2 * DAY),
-      reviewNote: 'Two independent deals, same pattern, both middlemen corroborated. Account blacklisted.',
-      createdAt: ago(4 * DAY),
-    },
-  });
+  for (const c of BLACKLISTED) {
+    const target = ids[c.handle];
+    await db.scammerReport.create({
+      data: {
+        reporterId: ids[c.reporter],
+        accusedUserId: target,
+        accusedHandle: c.handle,
+        category: c.category,
+        evidence: c.evidence,
+        status: 'UPHELD',
+        reviewedById: ids.admin,
+        reviewedAt: ago(c.daysAgo * DAY),
+        reviewNote: c.note,
+        createdAt: ago((c.daysAgo + 2) * DAY),
+      },
+    });
 
-  await db.user.update({
-    where: { id: ids.dredge },
-    data: {
-      status: 'BLACKLISTED',
-      blacklistReason:
-        'Took collateral on two deals and delivered a wallet with no whitelist role, then went silent. Report upheld after review.',
-      blacklistedAt: ago(2 * DAY),
-      blacklistedById: ids.admin,
-    },
-  });
-  console.log(`  2 scammer reports (1 pending, 1 upheld -> 1 blacklisted account) [${upheld.id.slice(0, 6)}]`);
+    await db.user.update({
+      where: { id: target },
+      data: {
+        status: 'BLACKLISTED',
+        blacklistReason: c.reason,
+        blacklistedAt: ago(c.daysAgo * DAY),
+        blacklistedById: ids.admin,
+      },
+    });
+  }
+  console.log(
+    `  ${BLACKLISTED.length + 1} scammer reports (1 pending, ${BLACKLISTED.length} upheld -> ${BLACKLISTED.length} blacklisted accounts)`,
+  );
 
   // --- credentials ---------------------------------------------------------
   const w = Math.max(...PEOPLE.map((p) => p.email.length));
@@ -659,7 +673,7 @@ async function main() {
   }
   console.log('-'.repeat(w + 46));
   console.log(`\nEvery account uses the same password: ${PASSWORD}`);
-  console.log('dredge is BLACKLISTED — proxy.ts rejects its session on the next request.');
+  console.log('The BLACKLISTED accounts cannot sign in — proxy.ts rejects their session on the next request.');
   console.log('\nDemo data. No real users, no real funds, no payment is ever processed.');
 }
 

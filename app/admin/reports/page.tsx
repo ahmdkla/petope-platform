@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { Avatar, Badge, Card, EmptyState, SectionTitle } from "@/components/ui";
@@ -15,10 +16,23 @@ import {
 export const metadata: Metadata = { title: "Reports" };
 export const dynamic = "force-dynamic";
 
+/**
+ * Excludes reports created by the test suites, matching how every other feed
+ * treats `isTest`. A report is test-created if either party is — the suites
+ * make both, but checking both means a fixture can never sneak in by reusing a
+ * real reporter.
+ */
+const NOT_TEST: Prisma.ScammerReportWhereInput = {
+  reporter: { isTest: false },
+  OR: [{ accusedUserId: null }, { accusedUser: { isTest: false } }],
+};
+
 export default async function ReportsPage() {
   const [pending, decided] = await Promise.all([
     db.scammerReport.findMany({
-      where: { status: "PENDING" },
+      // Test suites file and decide reports as fixtures. They are not review
+      // work, and 30 of them crowded the 7 real cases out of the list below.
+      where: { status: "PENDING", ...NOT_TEST },
       include: {
         reporter: { select: { id: true, displayName: true } },
         accusedUser: { select: { id: true, displayName: true, status: true } },
@@ -27,7 +41,7 @@ export default async function ReportsPage() {
       orderBy: { createdAt: "asc" },
     }),
     db.scammerReport.findMany({
-      where: { status: { not: "PENDING" } },
+      where: { status: { not: "PENDING" }, ...NOT_TEST },
       include: {
         reviewedBy: { select: { displayName: true } },
         accusedUser: { select: { displayName: true } },

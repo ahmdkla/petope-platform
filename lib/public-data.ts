@@ -155,7 +155,9 @@ export async function getMintEvents() {
 const cachedBlacklist = unstable_cache(
   async () =>
     db.user.findMany({
-      where: { status: 'BLACKLISTED' },
+      // isTest: the report suites blacklist throwaway accounts by design, and
+      // this page names people publicly. Test debris must never reach it.
+      where: { status: 'BLACKLISTED', isTest: false },
       select: {
         id: true,
         displayName: true,

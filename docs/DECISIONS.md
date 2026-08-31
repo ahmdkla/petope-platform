@@ -1162,3 +1162,95 @@ or a body under 40 characters.
 **A 200 is not evidence a page works.** All three of these returned 200 the
 whole time; two rendered a blank shell and one rendered a confident lie. Status
 codes were what the earlier smoke tests checked, which is why they passed.
+
+---
+
+## SECURITY: the public blacklist was publishing test fixtures
+
+**Date:** 2026-08-31 · **Spotted in a screenshot sent about spacing**
+
+`/blacklist` names people publicly as scammers. Thirteen of its fourteen entries
+were **accounts created by the test suite** — `scammer_mtg63q0x`,
+`scammer_mtg4jq1v` and so on, all `@invalid.test`, all carrying the fixture
+reason "Confirmed: took payment on two deals and never delivered." Only `dredge`,
+the seeded account, was real.
+
+`scripts/test-reports.ts` creates a throwaway account and blacklists it to prove
+the uphold flow works. Its own comment said "a throwaway account to act against,
+so no seeded user is left blacklisted" — the intent was right, but the throwaway
+account then went straight onto the public page, and every run added another.
+
+**Cause: `User` had no `isTest` column.** `Deal` and `Listing` both have one,
+with a comment on each explaining that test debris must not reach public feeds.
+`User` was the gap, so nothing filtered it, and every public surface that lists
+people inherited the problem.
+
+Fixed by adding `User.isTest`, matching the existing pattern:
+
+- migration `user_is_test` adds the column and backfills existing debris — every
+  suite suffixes a run id after a dot in the local part, which no seeded account
+  has, so the cleanup is exact rather than a guess
+- `test-reports.ts` and `test-supply.ts` now set `isTest: true` on the accounts
+  they create
+- `getBlacklist()` filters `isTest: false`
+
+Verified by running all eight suites and reloading the page: zero `scammer_` or
+`innocent_` entries, `dredge` still present. All 199 assertions still pass.
+
+**The rule, now that `User` has the flag too: any public surface that lists
+PEOPLE must filter on `isTest`.** The roster and vouch feed happen to be safe
+because they filter on middleman roles that test accounts never hold — safe by
+accident, not by design, and worth checking if either query ever widens.
+
+---
+
+## Blacklist entries sit two-up
+
+**Date:** 2026-08-31
+
+Each entry is a short self-contained record, not a row to compare across, so a
+single column bought nothing and left half the page empty. Two columns from `md`
+up, in a `max-w-6xl` container.
+
+Separate cards rather than a divided list: dividers imply a reading order down
+the page, which stops being true once entries sit side by side.
+
+Measured: 2 columns at 1600px and 900px, 1 at 390px, no overflow at 390 / 1280 /
+1920 / 2560.
+
+---
+
+## Seven blacklist cases, each with an upheld report behind it
+
+**Date:** 2026-08-31
+
+The demo needs a populated blacklist. Rather than seven hand-written rows, each
+case files a report, has an admin uphold it, and only then blacklists the
+account — the order the real workflow uses, and the order `/blacklist` claims
+when it says every entry was reviewed first. That also gives `/admin/reports` a
+real Decided list instead of an empty one.
+
+The cases cover the scams this market actually sees: selling one spot to several
+buyers, middleman impersonation in DMs, draining a wallet after a Wallet Submit
+handover, ban evasion via a shared wallet, keeping a Mint For You NFT, and
+reclaiming a surrendered Discord account. Dates are spread over six weeks so the
+feed does not read as one batch.
+
+`prisma/blacklist-cases.ts` holds the table, because `prisma/seed.ts` runs its
+`main()` on import and cannot be imported from. `scripts/seed-blacklist.ts` tops
+an existing database up from the same data — the full seed is deliberately not
+idempotent, so a demo database that predates these cases can catch up without a
+`migrate reset` that would destroy the append-only ledger. Every step checks
+first, so it is safe to re-run; a second run reports 0 created, 0 filed.
+
+**Two things this surfaced.**
+
+Writing rows directly to the database bypasses `revalidateTag`, so the new
+entries did not appear until the 60-second `unstable_cache` window expired. That
+is the cache working as designed, but worth knowing before concluding a seed
+script did nothing.
+
+And `/admin/reports` was showing almost nothing real: 30 of its 37 decided
+reports were test fixtures, filling `take: 25` and pushing all seven genuine
+cases off the page. Now filtered on `isTest` for both parties, matching the rule
+recorded above for surfaces that list people.
