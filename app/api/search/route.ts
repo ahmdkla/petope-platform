@@ -55,7 +55,7 @@ export async function GET(request: Request) {
       select: {
         id: true,
         displayName: true,
-        isVerifiedMm: true,
+        role: true,
         workingHoursUtc: true,
         tradesSecured: true,
       },
@@ -84,7 +84,9 @@ export async function GET(request: Request) {
       id: m.id,
       href: `/u/${m.id}`,
       title: m.displayName ?? "unnamed",
-      subtitle: m.isVerifiedMm ? "Verified middleman" : "Middleman",
+      // Appearing in this result set is itself the verification: the query only
+      // returns ACTIVE middlemen, which is exactly the roster.
+      subtitle: m.role === "MAIN_MIDDLEMAN" ? "Main middleman" : "Middleman",
       meta: m.workingHoursUtc,
     })),
   ];

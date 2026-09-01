@@ -121,12 +121,19 @@ they got pinged. Needs:
 ## Middleman / Team Tools
 
 ### MM Roster & Profiles (`exsa-crew`, `middleman-fees`)
-Public page listing each middleman with avatar, handle, verified badge,
+Public page listing each middleman with avatar, **the exact handle, copyable**,
 **working hours in UTC** (e.g. `09:00–21:00 UTC`, or `flexible`), trades
 secured count, and vouch rating.
 
+**There is no verified badge, deliberately.** The roster IS the verification:
+everyone listed is a middleman and nobody else is, so a badge on the page could
+only ever say "yes" — and an "unverified middleman" is a contradiction that
+undermines the one question the page exists to answer.
+
 This page doubles as the anti-impersonation reference — it's the canonical
 "is this person really an MM" check. Make it easy to find and hard to fake.
+Membership is `role IN (MIDDLEMAN, MAIN_MIDDLEMAN) AND status = ACTIVE`, and
+nothing else.
 
 ### Team Chat (`team-chat`)
 Internal-only channel for middlemen to coordinate: ticket cleanup, collateral

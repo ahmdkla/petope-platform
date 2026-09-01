@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BadgeCheck, ShieldAlert } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import { Avatar, Badge, Card, Note, SectionTitle } from "@/components/ui";
 import { isOnShift } from "@/lib/shifts";
 import type { ActorRole } from "@/lib/deal-transitions";
@@ -7,7 +7,6 @@ import type { ActorRole } from "@/lib/deal-transitions";
 type Party = {
   id: string;
   displayName: string | null;
-  isVerifiedMm: boolean;
   /** Middlemen only; buyers and sellers do not keep shifts. */
   workingHoursUtc?: string | null;
 } | null;
@@ -103,12 +102,6 @@ function Party({
       </span>
       <span className="flex shrink-0 flex-col items-end gap-1">
         {isYou ? <Badge tone="neutral">You</Badge> : null}
-        {party.isVerifiedMm ? (
-          <Badge tone="accent">
-            <BadgeCheck aria-hidden className="size-3.5" strokeWidth={2} />
-            Verified
-          </Badge>
-        ) : null}
       </span>
     </li>
   );

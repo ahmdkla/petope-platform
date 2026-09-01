@@ -47,13 +47,12 @@ export default async function DealRoomPage({
   const deal = await db.deal.findUnique({
     where: { id },
     include: {
-      buyer: { select: { id: true, displayName: true, isVerifiedMm: true, role: true } },
-      seller: { select: { id: true, displayName: true, isVerifiedMm: true, role: true } },
+      buyer: { select: { id: true, displayName: true, role: true } },
+      seller: { select: { id: true, displayName: true, role: true } },
       middleman: {
         select: {
           id: true,
           displayName: true,
-          isVerifiedMm: true,
           role: true,
           workingHoursUtc: true,
           tradesSecured: true,

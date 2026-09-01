@@ -51,21 +51,20 @@ type Seed = {
   role: 'USER' | 'MIDDLEMAN' | 'MAIN_MIDDLEMAN' | 'ADMIN';
   /** What this account is for, printed with the credentials at the end. */
   purpose: string;
-  isVerifiedMm?: boolean;
   workingHoursUtc?: string;
   tradesSecured?: number;
 };
 
 const PEOPLE: Seed[] = [
   // --- the escrow team ---------------------------------------------------
-  { email: 'akla@exsaverse.demo', displayName: 'akla', role: 'MAIN_MIDDLEMAN', purpose: 'boss MM — final say on disputes', isVerifiedMm: true, workingHoursUtc: SHIFTS.night, tradesSecured: 4820 },
-  { email: 'rei@exsaverse.demo', displayName: 'rei', role: 'MIDDLEMAN', purpose: 'night shift', isVerifiedMm: true, workingHoursUtc: SHIFTS.night, tradesSecured: 1960 },
-  { email: 'nadia@exsaverse.demo', displayName: 'nadia', role: 'MIDDLEMAN', purpose: 'day shift', isVerifiedMm: true, workingHoursUtc: SHIFTS.day, tradesSecured: 3140 },
-  { email: 'juno@exsaverse.demo', displayName: 'juno', role: 'MIDDLEMAN', purpose: 'day shift', isVerifiedMm: true, workingHoursUtc: SHIFTS.day, tradesSecured: 774 },
-  { email: 'sable@exsaverse.demo', displayName: 'sable', role: 'MIDDLEMAN', purpose: 'evening shift', isVerifiedMm: true, workingHoursUtc: SHIFTS.evening, tradesSecured: 2255 },
-  // Deliberately unverified, so the roster's verified badge is visibly doing
-  // something rather than being decoration on every card.
-  { email: 'tobi@exsaverse.demo', displayName: 'tobi', role: 'MIDDLEMAN', purpose: 'evening shift — UNVERIFIED on purpose', isVerifiedMm: false, workingHoursUtc: SHIFTS.evening, tradesSecured: 31 },
+  { email: 'akla@exsaverse.demo', displayName: 'akla', role: 'MAIN_MIDDLEMAN', purpose: 'boss MM — final say on disputes', workingHoursUtc: SHIFTS.night, tradesSecured: 4820 },
+  { email: 'rei@exsaverse.demo', displayName: 'rei', role: 'MIDDLEMAN', purpose: 'night shift', workingHoursUtc: SHIFTS.night, tradesSecured: 1960 },
+  { email: 'nadia@exsaverse.demo', displayName: 'nadia', role: 'MIDDLEMAN', purpose: 'day shift', workingHoursUtc: SHIFTS.day, tradesSecured: 3140 },
+  { email: 'juno@exsaverse.demo', displayName: 'juno', role: 'MIDDLEMAN', purpose: 'day shift', workingHoursUtc: SHIFTS.day, tradesSecured: 774 },
+  { email: 'sable@exsaverse.demo', displayName: 'sable', role: 'MIDDLEMAN', purpose: 'evening shift', workingHoursUtc: SHIFTS.evening, tradesSecured: 2255 },
+  // The newest middleman, kept on the roster with a low trade count: being
+  // listed is the whole verification, so there is no lesser tier to sit in.
+  { email: 'tobi@exsaverse.demo', displayName: 'tobi', role: 'MIDDLEMAN', purpose: 'evening shift — newest, lowest trade count', workingHoursUtc: SHIFTS.evening, tradesSecured: 31 },
 
   { email: 'admin@exsaverse.demo', displayName: 'admin', role: 'ADMIN', purpose: 'admin section, fee config, blacklist' },
 
@@ -174,7 +173,6 @@ async function main() {
       where: { id: res.user.id },
       data: {
         role: p.role,
-        isVerifiedMm: p.isVerifiedMm ?? false,
         workingHoursUtc: p.workingHoursUtc ?? null,
         tradesSecured: p.tradesSecured ?? 0,
         emailVerified: true, // demo accounts; no mail provider is wired up

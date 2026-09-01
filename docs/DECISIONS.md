@@ -1254,3 +1254,66 @@ And `/admin/reports` was showing almost nothing real: 30 of its 37 decided
 reports were test fixtures, filling `take: 25` and pushing all seven genuine
 cases off the page. Now filtered on `isTest` for both parties, matching the rule
 recorded above for surfaces that list people.
+
+---
+
+## No verified badge on the middleman roster — the roster *is* the verification
+
+`/middlemen` is the authoritative answer to "is this person really a middleman".
+Putting a Verified / Unverified badge on that page contradicts its own premise:
+if the roster is authoritative, a badge can only ever read "yes", and an
+"unverified middleman" listed on the canonical list is a category error that
+tells a user under pressure exactly the wrong thing.
+
+So `User.isVerifiedMm` is gone — column, index, and every badge that read it
+(roster, deal rooms, listing cards, vouches, sales feed, search, profile, public
+profile, admin users). Migration `drop_is_verified_mm` drops the column and
+replaces `User_role_isVerifiedMm_idx` with `User_role_status_idx`, which is what
+the membership rule actually queries:
+
+```
+role IN ('MIDDLEMAN', 'MAIN_MIDDLEMAN') AND status = 'ACTIVE'
+```
+
+Deactivating or blacklisting an account now removes it from the roster in one
+step, with no second flag that could disagree with the first. `tobi` was seeded
+unverified purely to demonstrate the badge; he is now an ordinary middleman with
+a low trade count, which is the honest signal — trades secured and vouch count
+already say "new" without inventing a lesser tier.
+
+### What replaced it
+
+The badge was doing anti-impersonation work, so that work moved somewhere it
+actually holds:
+
+- **The warning is now the primary safeguard**, not a footnote — a
+  danger-toned panel at the top of the roster stating that a middleman never
+  messages first.
+- **The exact handle is shown and copyable per middleman.** Lookalike handles
+  are the real attack; a badge never defended against one, because the
+  impersonator is a different account with a similar name, not the same account
+  missing a tick.
+- **A handle checker** (`lib/handles.ts` + `app/middlemen/handle-check.tsx`)
+  answers the question outright instead of asking the user to scan cards. It
+  reports three outcomes: on the roster, not on the roster, or — the case that
+  matters — *not on the roster but one character-swap away from someone who
+  is*. `skeleton()` collapses confusable groups (`i/l/1/|/!`, `o/0`, `a/4/@`,
+  Cyrillic homoglyphs), the `rn`→`m` ligature, separators, and repeated
+  letters, so `nad1a`, `nаdia`, `_juno_` and `sabble` all resolve to a
+  near-miss verdict rather than a bare "not found". Twenty cases are asserted;
+  the near-miss verdict is deliberately worded as suspicion, not as a typo.
+
+The check runs entirely client-side against the full roster passed to the page,
+because a partial or debounced server answer could return "not a middleman" for
+a name that is one, and that failure mode is worse than the attack.
+
+### The reported grid overflow could not be reproduced
+
+The same turn reported juno's card cut off on the right and the "2 on shift now"
+header badge clipped. Neither reproduces: `scripts/check-overflow.mjs` finds no
+horizontal overflow on `/middlemen` at **every width from 360px to 2600px in
+40px steps**, signed out and signed in, and the badge's right edge measures
+inside the viewport. The container-based track
+(`minmax(min(100%,22rem),1fr)`) and the `shrink-0 flex-wrap` header actions
+that fix this class of bug were both already applied in earlier work, so the
+screenshot most likely predates them. Nothing was changed for it.

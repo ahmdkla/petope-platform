@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { MessageSquareQuote, BadgeCheck } from "lucide-react";
+import { MessageSquareQuote } from "lucide-react";
 import { getVouches, getVouchFilterRoster } from "@/lib/public-data";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
-import { Avatar, Badge, Card, EmptyState, Note, SectionTitle } from "@/components/ui";
+import { Avatar, Card, EmptyState, Note, SectionTitle } from "@/components/ui";
 import { isOnShift } from "@/lib/shifts";
 
 export const metadata: Metadata = {
@@ -73,12 +73,6 @@ export default async function VouchesPage({
                         >
                           {v.middleman.displayName ?? "unnamed"}
                         </Link>
-                        {v.middleman.isVerifiedMm ? (
-                          <Badge tone="accent">
-                            <BadgeCheck aria-hidden className="size-3.5" strokeWidth={2} />
-                            Verified
-                          </Badge>
-                        ) : null}
                       </div>
                       <p className="mt-0.5 text-meta text-ink-faint">
                         secured {v.deal.projectName} for{" "}

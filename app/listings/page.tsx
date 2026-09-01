@@ -70,7 +70,7 @@ export default async function ListingsPage({
     Promise.all([
       db.listing.findMany({
         where,
-        include: { author: { select: { id: true, displayName: true, isVerifiedMm: true } } },
+        include: { author: { select: { id: true, displayName: true } } },
         // Promoted (prem-listing) first, then newest.
         orderBy: [{ promoted: "desc" }, { createdAt: "desc" }],
         take: 100,

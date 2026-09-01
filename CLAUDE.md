@@ -368,8 +368,14 @@ payments — the manual MM confirmation step is the thing being demonstrated.
 - Rate-limit auth, ticket creation, and every fund endpoint
 - **Impersonation is the top threat** (the Discord runs a standing "verify
   server ID" warning and members carry "beware of impersonator" notes). Build:
-  verified MM badges, a canonical public MM roster page, unique per-deal
-  verification links, and a visible warning that MMs never DM first.
+  a canonical public MM roster page, the exact handle shown and copyable for
+  character-for-character comparison, a handle checker that answers "is this
+  person a middleman" outright and flags lookalikes, unique per-deal
+  verification links, and a prominent warning that MMs never DM first.
+  **No verified badge** — being on the roster is the verification, so a badge
+  could only say "yes", and an "unverified middleman" on the authoritative list
+  contradicts the page. Roster membership is
+  `role IN (MIDDLEMAN, MAIN_MIDDLEMAN) AND status = ACTIVE`.
 - Append-only transcript for every deal room, exportable
 - Alt-account / same-person detection: flag shared wallets, IPs, devices
 
@@ -493,7 +499,8 @@ thing is the specific AI-template look, not gradients as a category.
   Card grid, not a bare table.
 - **Deal states** get colour-coded pills, not plain text.
 - **Middleman profiles** get avatars and visible trust signals — vouch count,
-  trades secured, verified badge — presented with some weight.
+  trades secured, the exact handle — presented with some weight. No verified
+  badge; see Security Non-Negotiables.
 - **Empty states** get an icon and a helpful line, not one grey sentence.
 - **Dashboard** shows activity: recent listings, your open deals, recent
   completed sales. Something is always happening.

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { AppShell, PageHeader, PageBody } from "@/components/shell/app-shell";
 import { Avatar, Badge, Card, EmptyState, SectionTitle } from "@/components/ui";
-import { Store, BadgeCheck } from "lucide-react";
+import { Store } from "lucide-react";
 import { formatMoney, resolveTotal } from "@/lib/money";
 
 export const metadata: Metadata = { title: "Member" };
@@ -22,7 +22,6 @@ export default async function PublicProfilePage({
       displayName: true,
       role: true,
       status: true,
-      isVerifiedMm: true,
       workingHoursUtc: true,
       tradesSecured: true,
       createdAt: true,
@@ -50,12 +49,6 @@ export default async function PublicProfilePage({
         actions={
           <div className="flex items-center gap-2">
             <Avatar name={user.displayName ?? "??"} seed={id} size="lg" />
-            {user.isVerifiedMm ? (
-              <Badge tone="accent">
-                <BadgeCheck aria-hidden className="size-3.5" strokeWidth={2} />
-                Verified MM
-              </Badge>
-            ) : null}
             {user.status !== "ACTIVE" ? (
               <Badge tone="danger">{user.status.toLowerCase()}</Badge>
             ) : null}

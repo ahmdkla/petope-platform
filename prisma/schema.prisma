@@ -234,12 +234,9 @@ model User {
   blacklistedAt   DateTime?
   blacklistedById String?
 
-  // --- middleman profile fields (null/false for ordinary users) ---
+  // --- middleman profile fields (null/zero for ordinary users) ---
   /// Published working hours, e.g. "09:00-21:00 UTC" or "flexible".
   workingHoursUtc String?
-  /// Drives the verified-MM badge on the canonical roster page, which is the
-  /// anti-impersonation reference. Impersonation is the top threat.
-  isVerifiedMm    Boolean @default(false)
   tradesSecured   Int     @default(0)
 
   /// When this user explicitly accepted the guidelines/terms and privacy
@@ -304,7 +301,10 @@ model User {
   supportAssigned SupportTicket[]  @relation("SupportAssignedTo")
   supportMessages SupportMessage[]
 
-  @@index([role, isVerifiedMm])
+  /// The roster query: role plus status, which is now the whole definition of
+  /// "is a middleman". There is no separate verification flag — being listed
+  /// here IS the verification.
+  @@index([role, status])
   @@index([status])
 }
 

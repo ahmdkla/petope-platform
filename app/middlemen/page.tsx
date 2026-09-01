@@ -6,12 +6,13 @@ import { Avatar, Badge, EmptyState } from "@/components/ui";
 import {
   ShieldAlert,
   ShieldCheck,
-  BadgeCheck,
   Clock3,
   Handshake,
   MessageSquareQuote,
 } from "lucide-react";
 import { shiftStatus, currentShiftWindow, isOnShift } from "@/lib/shifts";
+import { HandleCheck } from "./handle-check";
+import { CopyHandle } from "./copy-handle";
 
 export const metadata: Metadata = {
   title: "Middleman roster",
@@ -39,6 +40,11 @@ export default async function MiddlemenPage({
     ? middlemen.filter((m) => shiftStatus(m.workingHoursUtc).onShift)
     : middlemen;
   const shift = currentShiftWindow();
+  // Checked against the FULL roster, not the filtered view: "is this person a
+  // middleman" must not depend on whether they happen to be on shift.
+  const handles = middlemen
+    .map((m) => m.displayName)
+    .filter((h): h is string => Boolean(h));
 
   return (
     <AppShell>
@@ -59,14 +65,44 @@ export default async function MiddlemenPage({
       />
 
       <PageBody>
-        <div className="flex max-w-3xl gap-3 rounded-lg border border-warn/25 bg-warn-soft p-4 text-body text-warn">
-          <ShieldAlert aria-hidden className="size-5 shrink-0" strokeWidth={1.75} />
-          <span>
-            Middlemen never DM you first. If someone contacts you claiming to be
-            staff, they are an impersonator. Verify the exact handle here before
-            sending funds, credentials, or a wallet.
-          </span>
-        </div>
+        {/*
+          The primary safeguard on this page, and now the only one — there is no
+          verified badge to lean on. Weighted accordingly: danger rather than
+          warning, a heading rather than a sentence in a strip, and the handle
+          checker inside the same surface so the instruction and the tool to
+          follow it are not separated.
+        */}
+        <section
+          aria-labelledby="impersonation-warning"
+          className="rounded-xl border border-danger/40 bg-danger-soft p-5 sm:p-6"
+        >
+          <div className="flex items-start gap-3">
+            <ShieldAlert
+              aria-hidden
+              className="mt-0.5 size-6 shrink-0 text-danger"
+              strokeWidth={2}
+            />
+            <div className="min-w-0 space-y-2">
+              <h2
+                id="impersonation-warning"
+                className="text-section font-bold tracking-tight text-danger"
+              >
+                A middleman will never message you first
+              </h2>
+              <p className="text-body text-ink">
+                Anyone who does is an impersonator, whatever their handle or
+                avatar looks like. This page is the only authoritative list:
+                everyone on it is a middleman, and nobody else is. Compare the
+                exact handle character for character before you send funds,
+                credentials, or a wallet.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 border-t border-danger/25 pt-5">
+            <HandleCheck roster={handles} />
+          </div>
+        </section>
 
         {shown.length === 0 ? (
           <div className="mt-6">
@@ -74,8 +110,8 @@ export default async function MiddlemenPage({
               icon={ShieldCheck}
               message={
                 onShiftOnly
-                  ? `Nobody is covering the ${shift.label} shift right now. Every verified middleman is still listed — clear the filter to see who is on later, or open a deal anyway and the next one on shift will claim it.`
-                  : "No middlemen are listed yet. Verified middlemen appear here with their vouch count, trades secured, and published hours."
+                  ? `Nobody is covering the ${shift.label} shift right now. Every middleman is still listed — clear the filter to see who is on later, or open a deal anyway and the next one on shift will claim it.`
+                  : "No middlemen are listed yet. Middlemen appear here with their exact handle, vouch count, trades secured, and published hours."
               }
               action={
                 onShiftOnly ? (
@@ -111,15 +147,17 @@ export default async function MiddlemenPage({
                       {m.role === "MAIN_MIDDLEMAN" ? "Main middleman" : "Middleman"}
                     </p>
                   </div>
-                  {m.isVerifiedMm ? (
-                    <Badge tone="accent">
-                      <BadgeCheck aria-hidden className="size-3.5" strokeWidth={2} />
-                      Verified
-                    </Badge>
-                  ) : (
-                    <Badge tone="neutral">Unverified</Badge>
-                  )}
                 </div>
+
+                {/* The exact handle, copyable. The heading above truncates on a
+                    narrow card, and a truncated handle is precisely the thing
+                    you cannot compare character for character. */}
+                {m.displayName ? (
+                  <div className="mt-4">
+                    <p className="mb-1.5 text-meta text-ink-faint">Exact handle</p>
+                    <CopyHandle handle={m.displayName} />
+                  </div>
+                ) : null}
 
                 <dl className="mt-5 grid grid-cols-2 gap-3">
                   <Trust

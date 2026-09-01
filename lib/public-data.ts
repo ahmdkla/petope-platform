@@ -64,7 +64,6 @@ export const getRoster = unstable_cache(
         id: true,
         displayName: true,
         role: true,
-        isVerifiedMm: true,
         workingHoursUtc: true,
         tradesSecured: true,
         _count: { select: { vouchesReceived: true } },
@@ -87,7 +86,6 @@ export const getVouchFilterRoster = unstable_cache(
       select: {
         id: true,
         displayName: true,
-        isVerifiedMm: true,
         _count: { select: { vouchesReceived: true } },
       },
       orderBy: { displayName: 'asc' },
@@ -110,7 +108,6 @@ const cachedVouches = unstable_cache(
           select: {
             id: true,
             displayName: true,
-            isVerifiedMm: true,
             workingHoursUtc: true,
           },
         },

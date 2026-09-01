@@ -1,5 +1,4 @@
 import { Avatar, Badge } from "@/components/ui";
-import { BadgeCheck } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { isOnShift } from "@/lib/shifts";
 import { unitPrice, type Sale } from "@/lib/sales";
@@ -63,13 +62,6 @@ export function SaleRow({ sale }: { sale: Sale }) {
                 <span className="min-w-0 truncate font-mono text-body text-ink">
                   {sale.middleman.displayName ?? "unnamed"}
                 </span>
-                {sale.middleman.isVerifiedMm ? (
-                  <BadgeCheck
-                    aria-label="Verified middleman"
-                    className="size-4 shrink-0 text-accent-text"
-                    strokeWidth={2}
-                  />
-                ) : null}
               </>
             ) : (
               <span className="text-body text-ink-faint">unassigned</span>

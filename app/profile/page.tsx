@@ -27,7 +27,6 @@ export default async function ProfilePage() {
       select: {
         createdAt: true,
         termsAcceptedAt: true,
-        isVerifiedMm: true,
         workingHoursUtc: true,
         tradesSecured: true,
         discordUsername: true,
@@ -64,7 +63,6 @@ export default async function ProfilePage() {
               <SectionTitle>Account</SectionTitle>
               <div className="flex gap-1.5">
                 <Badge>{ROLE_LABEL[user.role] ?? user.role}</Badge>
-                {record?.isVerifiedMm ? <Badge tone="accent">Verified MM</Badge> : null}
               </div>
             </div>
 
@@ -105,7 +103,7 @@ export default async function ProfilePage() {
               {record?.workingHoursUtc ? (
                 <Row label="Working hours" value={record.workingHoursUtc} mono />
               ) : null}
-              {record?.isVerifiedMm ? (
+              {record?.workingHoursUtc ? (
                 <Row
                   label="Trades secured"
                   value={record.tradesSecured.toLocaleString("en-US")}

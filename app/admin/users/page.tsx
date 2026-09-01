@@ -38,7 +38,6 @@ export default async function UsersPage({
         email: true,
         role: true,
         status: true,
-        isVerifiedMm: true,
         blacklistReason: true,
         createdAt: true,
         _count: { select: { buyerDeals: true, sellerDeals: true, middlemanDeals: true } },
@@ -126,7 +125,6 @@ export default async function UsersPage({
                           {u.status !== "ACTIVE" ? (
                             <Badge tone="danger">{u.status.toLowerCase()}</Badge>
                           ) : null}
-                          {u.isVerifiedMm ? <Badge tone="accent">Verified</Badge> : null}
                         </div>
                         <p className="mt-1 font-mono text-meta text-ink-faint">{u.email}</p>
                         <p className="mt-0.5 text-meta text-ink-faint">

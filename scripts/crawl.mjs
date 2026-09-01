@@ -6,7 +6,10 @@
  * renders an error boundary, and a client component that throws during
  * hydration leaves a shell with an exception in the console. Both are checked.
  *
- *   node scripts/crawl.mjs
+ *   IDS=$(npx tsx scripts/crawl-ids.ts) node scripts/crawl.mjs
+ *
+ * IDS is not optional in practice: without it the dynamic routes below are
+ * visited as the literal "undefined" and every one is reported as a 404.
  */
 import { spawn } from "node:child_process";
 import { mkdtempSync } from "node:fs";

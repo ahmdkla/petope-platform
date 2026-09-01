@@ -34,7 +34,6 @@ export type Sale = {
   middleman: {
     id: string;
     displayName: string | null;
-    isVerifiedMm: boolean;
     workingHoursUtc: string | null;
   } | null;
 };
@@ -142,7 +141,6 @@ export async function getRecentSales(limit = 60): Promise<Sale[]> {
         select: {
           id: true,
           displayName: true,
-          isVerifiedMm: true,
           workingHoursUtc: true,
         },
       },

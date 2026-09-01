@@ -15,7 +15,7 @@ import type { ListingDemand } from "@/lib/listing-demand";
 import { ListingActions } from "./listing-actions";
 
 export type ListingRow = Listing & {
-  author: { id: string; displayName: string | null; isVerifiedMm: boolean };
+  author: { id: string; displayName: string | null };
 };
 
 /**
@@ -145,13 +145,9 @@ export function ListingCard({
             <span className="block truncate font-mono text-meta text-ink">
               {l.author.displayName ?? "unnamed"}
             </span>
-            {l.author.isVerifiedMm ? (
-              <span className="block text-meta text-accent-text">Verified MM</span>
-            ) : (
-              <span className="block text-meta text-ink-faint">
-                {l.side === "SELL" ? "Seller" : "Buyer"}
-              </span>
-            )}
+            <span className="block text-meta text-ink-faint">
+              {l.side === "SELL" ? "Seller" : "Buyer"}
+            </span>
           </span>
         </Link>
 
